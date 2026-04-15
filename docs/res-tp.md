@@ -30,86 +30,46 @@ npm install
 composer run dev
 ```
 
-2. Vérifier que les pages `/register`, `/login`, `/logout` fonctionnent :
+2. Vérifier que les pages `/register`, `/login`, `/logout` fonctionnent via le navigateur :
 
-#### Étape 1 — Récupérer le token CSRF
-```
-GET http://localhost:8000/register
-```
+- Aller sur `http://localhost:8000/register` → créer un compte
+- Aller sur `http://localhost:8000/login` → se connecter
+- Cliquer sur "Log Out" → vérifier la déconnexion
 
-Insomnia récupère la page HTML
-Dans la réponse, cherche la balise : <meta name="csrf-token" content="XXXX">
-Copie la valeur du token
 
-#### Étape 2 — Register
-```
-POST http://localhost:8000/register
-```
-
-Headers :
-```
-X-CSRF-TOKEN: <token copié>
-Content-Type: application/json
-Accept: application/json
-```
-Body (JSON) :
-```json
-{
-  "name": "Test User",
-  "email": "test@test.com",
-  "password": "password123",
-  "password_confirmation": "password123"
-}
-```
-
-#### Étape 3 — Login
-```
-POST http://localhost:8000/login
-```
-
-```json
-{
-  "email": "test@test.com",
-  "password": "password123"
-}
-```
-
-#### Étape 4 — Logout
-```
-POST http://localhost:8000/logout
-```
-
-(avec le cookie de session récupéré après le login)
-
-3. Protéger les routes qui nécessitent d'être connecté avec le middleware `auth`
-
-#### routes/web.php
+3. Protéger les routes qui nécessitent d'être connecté avec le middleware `auth` :
 
 ```php
+// routes/web.php
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // Nouvelles routes protégées
-
-    //...
+    // Nouvelles routes protégées ici
 });
 ```
 
-4. Créer une page d'accueil accessible après connexion.
+> Si l'utilisateur n'est pas connecté, Laravel le redirige automatiquement vers `/login`.
 
-#### Ajout route protégé vers home
+4. Créer une page d'accueil `/home` accessible à tous, avec un contenu différent selon l'état de connexion.
+
+#### Route publique
 
 ```php
+// routes/web.php
+Route::get('/', function () {
+    return redirect()->route('home');
+});
+
 Route::get('/home', function () {
     return view('home');
 })->name('home');
 ```
 
-#### View home
+#### Vue `resources/views/home.blade.php`
 
-```php
+```blade
 <x-app-layout>
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
@@ -121,26 +81,33 @@ Route::get('/home', function () {
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-6 text-gray-900 dark:text-gray-100">
-                    <h3 class="text-lg font-semibold mb-2">Bienvenue, {{ Auth::user()->name }} !</h3>
-                    <p class="text-gray-600 dark:text-gray-400">Vous êtes connecté à Cinemap.</p>
+                    @auth
+                        <h3 class="text-lg font-semibold mb-2">Bienvenue, {{ Auth::user()->name }} !</h3>
+                        <p class="text-gray-600 dark:text-gray-400">Vous êtes connecté à Cinemap.</p>
+                    @else
+                        <h3 class="text-lg font-semibold mb-2">Bienvenue sur Cinemap</h3>
+                        <p class="text-gray-600 dark:text-gray-400 mb-4">Connectez-vous ou créez un compte.</p>
+                        <div class="flex gap-4">
+                            <a href="{{ route('login') }}" class="px-4 py-2 bg-gray-800 text-white rounded-md">Se connecter</a>
+                            <a href="{{ route('register') }}" class="px-4 py-2 border border-gray-800 text-gray-800 rounded-md">S'inscrire</a>
+                        </div>
+                    @endauth
                 </div>
             </div>
         </div>
     </div>
 </x-app-layout>
-
 ```
 
-#### Redirection vers home après login
+#### Navigation pour guests (`layouts/navigation.blade.php`)
+
+Entourer les éléments liés à l'utilisateur avec `@auth` / `@endauth` et afficher les liens login/register pour les invités avec `@else`.
+
+#### Redirection vers `/home` après connexion
+
 ```php
-public function store(LoginRequest $request): RedirectResponse
-{
-    $request->authenticate();
-
-    $request->session()->regenerate();
-
-    return redirect()->intended(route('home', absolute: false));
-}
+// app/Http/Controllers/Auth/AuthenticatedSessionController.php
+return redirect()->intended(route('home', absolute: false));
 ```
 
 ---
