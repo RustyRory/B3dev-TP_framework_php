@@ -20,7 +20,7 @@ Installe le projet en suivant [INSTALL.md](../INSTALL.md), puis vérifie que :
 
 ### Ce qu'il faut faire
 
-1. Installer Laravel Breeze (starter kit recommandé) :
+1. Installer Laravel Breeze :
 
 ```bash
 composer require laravel/breeze --dev
@@ -30,16 +30,118 @@ npm install
 composer run dev
 ```
 
-2. Vérifier que les pages `/register`, `/login`, `/logout` fonctionnent.
-3. Protéger les routes qui nécessitent d'être connecté avec le middleware `auth`.
-4. Créer une page d'accueil ou un tableau de bord accessible après connexion.
+2. Vérifier que les pages `/register`, `/login`, `/logout` fonctionnent :
 
-### Checklist
+#### Étape 1 — Récupérer le token CSRF
+```
+GET http://localhost:8000/register
+```
 
-- [ ] Inscription fonctionnelle
-- [ ] Connexion / déconnexion fonctionnelle
-- [ ] Redirection vers le tableau de bord après connexion
-- [ ] Routes protégées inaccessibles sans connexion
+Insomnia récupère la page HTML
+Dans la réponse, cherche la balise : <meta name="csrf-token" content="XXXX">
+Copie la valeur du token
+
+#### Étape 2 — Register
+```
+POST http://localhost:8000/register
+```
+
+Headers :
+```
+X-CSRF-TOKEN: <token copié>
+Content-Type: application/json
+Accept: application/json
+```
+Body (JSON) :
+```json
+{
+  "name": "Test User",
+  "email": "test@test.com",
+  "password": "password123",
+  "password_confirmation": "password123"
+}
+```
+
+#### Étape 3 — Login
+```
+POST http://localhost:8000/login
+```
+
+```json
+{
+  "email": "test@test.com",
+  "password": "password123"
+}
+```
+
+#### Étape 4 — Logout
+```
+POST http://localhost:8000/logout
+```
+
+(avec le cookie de session récupéré après le login)
+
+3. Protéger les routes qui nécessitent d'être connecté avec le middleware `auth`
+
+#### routes/web.php
+
+```php
+Route::middleware('auth')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Nouvelles routes protégées
+
+    //...
+});
+```
+
+4. Créer une page d'accueil accessible après connexion.
+
+#### Ajout route protégé vers home
+
+```php
+Route::get('/home', function () {
+    return view('home');
+})->name('home');
+```
+
+#### View home
+
+```php
+<x-app-layout>
+    <x-slot name="header">
+        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+            {{ __('Accueil') }}
+        </h2>
+    </x-slot>
+
+    <div class="py-12">
+        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                <div class="p-6 text-gray-900 dark:text-gray-100">
+                    <h3 class="text-lg font-semibold mb-2">Bienvenue, {{ Auth::user()->name }} !</h3>
+                    <p class="text-gray-600 dark:text-gray-400">Vous êtes connecté à Cinemap.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</x-app-layout>
+
+```
+
+#### Redirection vers home après login
+```php
+public function store(LoginRequest $request): RedirectResponse
+{
+    $request->authenticate();
+
+    $request->session()->regenerate();
+
+    return redirect()->intended(route('home', absolute: false));
+}
+```
 
 ---
 

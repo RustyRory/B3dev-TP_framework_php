@@ -25,12 +25,13 @@ cd B3dev-TP_framework_php
 ### 2. Installer les dépendances PHP
 
 ```bash
-composer install
+composer create-project laravel/laravel cinemap-app
 ```
 
 ### 3. Installer les dépendances Node
 
 ```bash
+cd cinemap-app/
 npm install
 ```
 
