@@ -20,7 +20,7 @@ Installe le projet en suivant [INSTALL.md](../INSTALL.md), puis vérifie que :
 
 ### Ce qu'il faut faire
 
-1. Installer Laravel Breeze (starter kit recommandé) :
+1. Installer Laravel Breeze :
 
 ```bash
 composer require laravel/breeze --dev
@@ -30,16 +30,85 @@ npm install
 composer run dev
 ```
 
-2. Vérifier que les pages `/register`, `/login`, `/logout` fonctionnent.
-3. Protéger les routes qui nécessitent d'être connecté avec le middleware `auth`.
-4. Créer une page d'accueil ou un tableau de bord accessible après connexion.
+2. Vérifier que les pages `/register`, `/login`, `/logout` fonctionnent via le navigateur :
 
-### Checklist
+- Aller sur `http://localhost:8000/register` → créer un compte
+- Aller sur `http://localhost:8000/login` → se connecter
+- Cliquer sur "Log Out" → vérifier la déconnexion
 
-- [ ] Inscription fonctionnelle
-- [ ] Connexion / déconnexion fonctionnelle
-- [ ] Redirection vers le tableau de bord après connexion
-- [ ] Routes protégées inaccessibles sans connexion
+
+3. Protéger les routes qui nécessitent d'être connecté avec le middleware `auth` :
+
+```php
+// routes/web.php
+Route::middleware('auth')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Nouvelles routes protégées ici
+});
+```
+
+> Si l'utilisateur n'est pas connecté, Laravel le redirige automatiquement vers `/login`.
+
+4. Créer une page d'accueil `/home` accessible à tous, avec un contenu différent selon l'état de connexion.
+
+#### Route publique
+
+```php
+// routes/web.php
+Route::get('/', function () {
+    return redirect()->route('home');
+});
+
+Route::get('/home', function () {
+    return view('home');
+})->name('home');
+```
+
+#### Vue `resources/views/home.blade.php`
+
+```blade
+<x-app-layout>
+    <x-slot name="header">
+        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+            {{ __('Accueil') }}
+        </h2>
+    </x-slot>
+
+    <div class="py-12">
+        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                <div class="p-6 text-gray-900 dark:text-gray-100">
+                    @auth
+                        <h3 class="text-lg font-semibold mb-2">Bienvenue, {{ Auth::user()->name }} !</h3>
+                        <p class="text-gray-600 dark:text-gray-400">Vous êtes connecté à Cinemap.</p>
+                    @else
+                        <h3 class="text-lg font-semibold mb-2">Bienvenue sur Cinemap</h3>
+                        <p class="text-gray-600 dark:text-gray-400 mb-4">Connectez-vous ou créez un compte.</p>
+                        <div class="flex gap-4">
+                            <a href="{{ route('login') }}" class="px-4 py-2 bg-gray-800 text-white rounded-md">Se connecter</a>
+                            <a href="{{ route('register') }}" class="px-4 py-2 border border-gray-800 text-gray-800 rounded-md">S'inscrire</a>
+                        </div>
+                    @endauth
+                </div>
+            </div>
+        </div>
+    </div>
+</x-app-layout>
+```
+
+#### Navigation pour guests (`layouts/navigation.blade.php`)
+
+Entourer les éléments liés à l'utilisateur avec `@auth` / `@endauth` et afficher les liens login/register pour les invités avec `@else`.
+
+#### Redirection vers `/home` après connexion
+
+```php
+// app/Http/Controllers/Auth/AuthenticatedSessionController.php
+return redirect()->intended(route('home', absolute: false));
+```
 
 ---
 
