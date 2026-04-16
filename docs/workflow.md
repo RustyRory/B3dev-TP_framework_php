@@ -651,7 +651,8 @@ $table->unique(['user_id', 'film_id']); // 1 vote par utilisateur
 Compteurs dénormalisés à remettre dans les migrations existantes (avant `migrate:fresh`) :
 
 - `localisations` → `$table->unsignedInteger('upvotes_count')->default(0);`
-- `films` → `$table->unsignedInteger('upvotes_count')->default(0);` et `$table->unsignedInteger('downvotes_count')->default(0);`
+- `films` → `$table->unsignedInteger('upvotes_count')->default(0);` 
+- `films` → `$table->unsignedInteger('downvotes_count')->default(0);`
 
 ### Ce qu'il faut faire
 
@@ -733,17 +734,6 @@ php artisan migrate
 ```bash
 php artisan queue:listen
 ```
-
-### Checklist
-
-- [ ] Compteurs `upvotes_count` / `downvotes_count` remis dans les migrations existantes
-- [ ] Table `localisation_votes` créée avec contrainte d'unicité
-- [ ] Table `film_votes` créée avec `is_upvote` et contrainte d'unicité
-- [ ] Bouton upvote visible sur la page d'une localisation (toggle)
-- [ ] Boutons upvote/downvote visibles sur la page d'un film (toggle + changement de sens)
-- [ ] Un utilisateur ne peut avoir qu'un seul vote actif par entité
-- [ ] Jobs `RecalculateLocalisationVotes` et `RecalculateFilmVotes` dispatchés après chaque action
-- [ ] Compteurs mis à jour après traitement par le worker
 
 ---
 
