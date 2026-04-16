@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\RecalculateLocalisationVotes;
 use App\Models\Film;
 use App\Models\Localisation;
+use App\Models\LocalisationVote;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -86,6 +88,25 @@ class LocalisationController extends Controller
         return redirect()
             ->route('films.show', $localisation->film_id)
             ->with('success', 'Localisation supprimée avec succès.');
+    }
+
+    public function vote(Localisation $localisation): RedirectResponse
+    {
+        $existing = LocalisationVote::where([
+            'user_id'         => auth()->id(),
+            'localisation_id' => $localisation->id,
+        ])->first();
+
+        $existing
+            ? $existing->delete()
+            : LocalisationVote::create([
+                'user_id'         => auth()->id(),
+                'localisation_id' => $localisation->id,
+            ]);
+
+        RecalculateLocalisationVotes::dispatch($localisation);
+
+        return back();
     }
 
     protected function validatedData(Request $request, ?Localisation $localisation = null): array
