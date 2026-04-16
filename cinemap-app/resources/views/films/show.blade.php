@@ -62,6 +62,39 @@
                 </div>
             </div>
 
+            {{-- Boutons de vote film --}}
+            <div class="mt-4 bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-4 flex items-center gap-4">
+                <span class="text-sm text-gray-500 dark:text-gray-400 font-medium">Voter :</span>
+                @auth
+                    <form action="{{ route('films.vote', $film) }}" method="POST">
+                        @csrf
+                        <input type="hidden" name="is_upvote" value="1">
+                        <button type="submit"
+                                class="{{ $userVote?->is_upvote === true ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300' }} px-4 py-2 rounded-lg font-medium hover:opacity-80 transition">
+                            +{{ $film->upvotes_count }}
+                        </button>
+                    </form>
+                    <form action="{{ route('films.vote', $film) }}" method="POST">
+                        @csrf
+                        <input type="hidden" name="is_upvote" value="0">
+                        <button type="submit"
+                                class="{{ $userVote?->is_upvote === false ? 'bg-red-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300' }} px-4 py-2 rounded-lg font-medium hover:opacity-80 transition">
+                            -{{ $film->downvotes_count }}
+                        </button>
+                    </form>
+                @else
+                    <span class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium">
+                        +{{ $film->upvotes_count }}
+                    </span>
+                    <span class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium">
+                        -{{ $film->downvotes_count }}
+                    </span>
+                    <span class="text-sm text-gray-500 dark:text-gray-400">
+                        <a href="{{ route('login') }}" class="text-blue-600 hover:underline">Connectez-vous</a> pour voter.
+                    </span>
+                @endauth
+            </div>
+
             {{-- Localisations --}}
             <div class="mt-6 bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-6">
                 <div class="flex justify-between items-center mb-4">
@@ -96,9 +129,28 @@
                             </p>
                         </div>
 
-                        @auth
-                            @if (auth()->id() === $localisation->user_id || auth()->user()->is_admin)
-                                <div class="flex gap-2 flex-shrink-0">
+                        {{-- Vote + actions --}}
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            {{-- Upvote --}}
+                            @auth
+                                @php $locVoted = $localisationVotes->has($localisation->id); @endphp
+                                <form action="{{ route('localisations.vote', $localisation) }}" method="POST">
+                                    @csrf
+                                    <button type="submit"
+                                            class="{{ $locVoted ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300' }} text-xs px-2 py-1 rounded font-medium hover:opacity-80 transition">
+                                        +{{ $localisation->upvotes_count }}
+                                    </button>
+                                </form>
+                            @else
+                                <span class="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded font-medium">
+                                    +{{ $localisation->upvotes_count }}
+                                </span>
+                            @endauth
+
+                            {{-- Modifier / Supprimer (propriétaire ou admin) --}}
+                            @auth
+                                @if (auth()->id() === $localisation->user_id || auth()->user()->is_admin)
+                                    <span class="text-gray-300 dark:text-gray-600">|</span>
                                     <a href="{{ route('localisations.edit', $localisation) }}"
                                        class="text-xs text-indigo-600 hover:text-indigo-900 dark:text-indigo-400">
                                         Modifier
@@ -111,9 +163,9 @@
                                             Supprimer
                                         </button>
                                     </form>
-                                </div>
-                            @endif
-                        @endauth
+                                @endif
+                            @endauth
+                        </div>
                     </div>
                 @empty
                     <p class="text-gray-500 dark:text-gray-400 text-sm">Aucune localisation pour ce film.</p>

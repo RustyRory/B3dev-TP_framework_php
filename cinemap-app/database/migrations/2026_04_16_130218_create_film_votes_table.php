@@ -11,16 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('localisations', function (Blueprint $table) {
+        Schema::create('film_votes', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('film_id')->constrained()->cascadeOnDelete();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->string('name');
-            $table->string('city');
-            $table->string('country');
-            $table->text('description');
-            $table->string('photo_url')->nullable();
-            $table->unsignedInteger('upvotes_count')->default(0);
+            $table->foreignId('film_id')->constrained()->cascadeOnDelete();     
+            $table->boolean('is_upvote'); // true = upvote, false = downvote
+            $table->unique(['user_id', 'film_id']); // 1 vote par utilisateur
             $table->timestamps();
         });
     }
@@ -30,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('localisations');
+        Schema::dropIfExists('film_votes');
     }
 };

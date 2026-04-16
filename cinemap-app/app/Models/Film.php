@@ -20,8 +20,6 @@ class Film extends Model
         'poster_url',
         'trailer_url',
         'actors',
-        'upvotes',
-        'downvotes',
     ];
 
     public function localisations(): HasMany

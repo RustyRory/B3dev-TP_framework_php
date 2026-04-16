@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\RecalculateFilmVotes;
 use App\Models\Film;
+use App\Models\FilmVote;
+use App\Models\LocalisationVote;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -37,8 +40,19 @@ class FilmController extends Controller
     {
         $film->load('localisations');
 
+        $localisationVotes = auth()->check()
+            ? LocalisationVote::where('user_id', auth()->id())
+                ->whereIn('localisation_id', $film->localisations->pluck('id'))
+                ->get()
+                ->keyBy('localisation_id')
+            : collect();
+
         return view('films.show', [
-            'film' => $film,
+            'film'              => $film,
+            'userVote'          => auth()->check()
+                ? FilmVote::where(['user_id' => auth()->id(), 'film_id' => $film->id])->first()
+                : null,
+            'localisationVotes' => $localisationVotes,
         ]);
     }
 
@@ -65,6 +79,30 @@ class FilmController extends Controller
         return redirect()
             ->route('films.index')
             ->with('success', 'Film supprimé avec succès.');
+    }
+
+    public function vote(Request $request, Film $film): RedirectResponse
+    {
+        $existing = FilmVote::where([
+            'user_id' => auth()->id(),
+            'film_id' => $film->id,
+        ])->first();
+
+        if ($existing) {
+            $existing->is_upvote === $request->boolean('is_upvote')
+                ? $existing->delete()
+                : $existing->update(['is_upvote' => $request->boolean('is_upvote')]);
+        } else {
+            FilmVote::create([
+                'user_id'   => auth()->id(),
+                'film_id'   => $film->id,
+                'is_upvote' => $request->boolean('is_upvote'),
+            ]);
+        }
+
+        RecalculateFilmVotes::dispatch($film);
+
+        return back();
     }
 
     protected function validatedData(Request $request, ?Film $film = null): array

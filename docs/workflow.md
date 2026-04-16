@@ -543,46 +543,251 @@ Le lien "Dashboard" dans la nav ne devrait être visible que pour les admins :
 
 ---
 
-## Étape 4 — Upvotes + Queue & Jobs
+## Étape 4 — Votes + Queue & Jobs
 
-**Objectif :** ajouter un bouton upvote sur les emplacements, traité en arrière-plan.
+**Objectif :** ajouter un système de vote sur les localisations (upvote uniquement) et sur les films (upvote + downvote), traité en arrière-plan via une queue.
 
-### Modèle de données
+### 1. Nettoyage — supprimer les anciens compteurs
+
+Avant de créer le nouveau modèle de données, supprimer les références aux anciens champs dans les fichiers suivants.
+
+#### Migrations existantes
+
+`create_films_table.php` — supprimer :
+```php
+$table->unsignedInteger('upvotes')->default(0);
+$table->unsignedInteger('downvotes')->default(0);
+```
+
+`create_localisations_table.php` — supprimer :
+```php
+$table->integer('upvotes_count')->default(0);
+```
+
+#### Modèles
+
+`Film.php` — retirer du `$fillable` :
+```php
+'upvotes',
+'downvotes',
+```
+
+`Localisation.php` — retirer du `$fillable` :
+```php
+'upvotes_count',
+```
+
+#### Factories
+
+`FilmFactory.php` — supprimer :
+```php
+'upvotes'   => fake()->numberBetween(0, 500),
+'downvotes' => fake()->numberBetween(0, 100),
+```
+
+`LocalisationFactory.php` — supprimer :
+```php
+'upvotes_count' => fake()->numberBetween(0, 100),
+```
+
+#### Vues
+
+`localisations/index.blade.php` — supprimer la `<th>` Votes et la `<td>` correspondante :
+```html
+<td ...>{{ $localisation->upvotes_count }}</td>
+```
+
+`localisations/show.blade.php` — supprimer le bloc `<dt>`/`<dd>` :
+```html
+<dd ...>{{ $localisation->upvotes_count }}</dd>
+```
+
+### 2. Modèle de données
+
+Remettre les compteurs dénormalisés dans les migrations existantes :
+
+- `create_localisations_table.php` → `$table->unsignedInteger('upvotes_count')->default(0);`
+- `create_films_table.php` → `$table->unsignedInteger('upvotes_count')->default(0);`
+- `create_films_table.php` → `$table->unsignedInteger('downvotes_count')->default(0);`
+
+Créer les deux tables de votes :
 
 ```bash
 php artisan make:migration create_localisation_votes_table
+php artisan make:migration create_film_votes_table
 ```
+
+`localisation_votes` — upvote uniquement :
 
 ```php
-$table->foreignId('user_id')->constrained();
-$table->foreignId('location_id')->constrained();
-$table->timestamp('created_at');
-$table->unique(['user_id', 'location_id']); // 1 vote par utilisateur
+$table->foreignId('user_id')->constrained()->cascadeOnDelete();
+$table->foreignId('localisation_id')->constrained()->cascadeOnDelete();
+$table->unique(['user_id', 'localisation_id']); // 1 vote par utilisateur
+$table->timestamps();
 ```
 
-### Ce qu'il faut faire
-
-1. Créer la table `location_votes`.
-2. Ajouter une route et une action de vote (pas de CRUD complet — juste un bouton POST) :
+`film_votes` — upvote **et** downvote :
 
 ```php
-// routes/web.php
-Route::post('/locations/{location}/upvote', [LocalisationController::class, 'upvote'])->middleware('auth');
+$table->foreignId('user_id')->constrained()->cascadeOnDelete();
+$table->foreignId('film_id')->constrained()->cascadeOnDelete();
+$table->boolean('is_upvote'); // true = upvote, false = downvote
+$table->unique(['user_id', 'film_id']); // 1 vote par utilisateur
+$table->timestamps();
 ```
 
-3. Dans l'action `upvote`, enregistrer le vote et dispatcher un job :
+> **Attention :** ne pas ajouter `$table->timestamp('created_at')` manuellement — `timestamps()` génère déjà `created_at` et `updated_at`.
+
+> **Attention :** si les deux migrations sont générées à la même seconde, renommer l'une d'elles avec un timestamp décalé d'une seconde pour éviter les conflits d'ordre d'exécution.
+
+Puis recréer la base :
 
 ```bash
-php artisan make:job RecalculateUpvotes
+php artisan migrate:fresh --seed
 ```
+
+### 3. Modèles
+
+Créer les deux modèles :
+
+```bash
+php artisan make:model LocalisationVote
+php artisan make:model FilmVote
+```
+
+`LocalisationVote` :
 
 ```php
-// Dans le job : recalculer upvotes_count sur l'emplacement
-$location->upvotes_count = LocationVote::where('location_id', $location->id)->count();
-$location->save();
+protected $fillable = ['user_id', 'localisation_id'];
+
+public function user(): BelongsTo
+{
+    return $this->belongsTo(User::class);
+}
+
+public function localisation(): BelongsTo
+{
+    return $this->belongsTo(Localisation::class);
+}
 ```
 
-4. Configurer la queue dans `.env` :
+`FilmVote` :
+
+```php
+protected $fillable = ['user_id', 'film_id', 'is_upvote'];
+
+protected $casts = ['is_upvote' => 'boolean'];
+
+public function user(): BelongsTo
+{
+    return $this->belongsTo(User::class);
+}
+
+public function film(): BelongsTo
+{
+    return $this->belongsTo(Film::class);
+}
+```
+
+### 4. Routes
+
+Dans le groupe `middleware('auth')` existant de `routes/web.php` :
+
+```php
+Route::post('/localisations/{localisation}/vote', [LocalisationController::class, 'vote'])
+    ->name('localisations.vote');
+Route::post('/films/{film}/vote', [FilmController::class, 'vote'])
+    ->name('films.vote');
+```
+
+### 5. Jobs de recalcul
+
+```bash
+php artisan make:job RecalculateLocalisationVotes
+php artisan make:job RecalculateFilmVotes
+```
+
+`RecalculateLocalisationVotes` — le modèle est injecté via le constructeur :
+
+```php
+public function __construct(public Localisation $localisation) {}
+
+public function handle(): void
+{
+    $this->localisation->upvotes_count = LocalisationVote::where('localisation_id', $this->localisation->id)->count();
+    $this->localisation->save();
+}
+```
+
+`RecalculateFilmVotes` :
+
+```php
+public function __construct(public Film $film) {}
+
+public function handle(): void
+{
+    $this->film->upvotes_count   = FilmVote::where('film_id', $this->film->id)->where('is_upvote', true)->count();
+    $this->film->downvotes_count = FilmVote::where('film_id', $this->film->id)->where('is_upvote', false)->count();
+    $this->film->save();
+}
+```
+
+> **Attention :** ne pas oublier les imports (`use App\Models\...`) en haut de chaque fichier de job.
+
+### 6. Actions dans les controllers
+
+`LocalisationController@vote` — toggle (re-cliquer = annuler le vote) :
+
+```php
+public function vote(Localisation $localisation): RedirectResponse
+{
+    $existing = LocalisationVote::where([
+        'user_id'          => auth()->id(),
+        'localisation_id'  => $localisation->id,
+    ])->first();
+
+    $existing
+        ? $existing->delete()
+        : LocalisationVote::create([
+            'user_id'         => auth()->id(),
+            'localisation_id' => $localisation->id,
+        ]);
+
+    RecalculateLocalisationVotes::dispatch($localisation);
+
+    return back();
+}
+```
+
+`FilmController@vote` — toggle ou changement de sens :
+
+```php
+public function vote(Request $request, Film $film): RedirectResponse
+{
+    $existing = FilmVote::where([
+        'user_id' => auth()->id(),
+        'film_id' => $film->id,
+    ])->first();
+
+    if ($existing) {
+        $existing->is_upvote === $request->boolean('is_upvote')
+            ? $existing->delete()
+            : $existing->update(['is_upvote' => $request->boolean('is_upvote')]);
+    } else {
+        FilmVote::create([
+            'user_id'   => auth()->id(),
+            'film_id'   => $film->id,
+            'is_upvote' => $request->boolean('is_upvote'),
+        ]);
+    }
+
+    RecalculateFilmVotes::dispatch($film);
+
+    return back();
+}
+```
+
+### 7. Configuration de la queue
 
 ```env
 QUEUE_CONNECTION=database
@@ -591,17 +796,86 @@ QUEUE_CONNECTION=database
 ```bash
 php artisan queue:table
 php artisan migrate
+php artisan queue:listen
 ```
 
-5. Vérifier que le job passe bien par le worker (`php artisan queue:listen`).
+### 8. Boutons de vote dans les vues
 
-### Checklist
+Les controllers passent le vote de l'utilisateur connecté à la vue pour colorier le bouton actif.
 
-- [ ] Table `location_votes` créée avec contrainte d'unicité
-- [ ] Bouton upvote visible sur la page d'un emplacement
-- [ ] Un utilisateur ne peut voter qu'une seule fois
-- [ ] Job `RecalculateUpvotes` dispatché après le vote
-- [ ] `upvotes_count` mis à jour après traitement par le worker
+`LocalisationController@show` — passer `$userHasVoted` :
+
+```php
+'userHasVoted' => auth()->check()
+    ? LocalisationVote::where(['user_id' => auth()->id(), 'localisation_id' => $localisation->id])->exists()
+    : false,
+```
+
+`FilmController@show` — passer `$userVote` :
+
+```php
+'userVote' => auth()->check()
+    ? FilmVote::where(['user_id' => auth()->id(), 'film_id' => $film->id])->first()
+    : null,
+```
+
+**`localisations/show.blade.php`** — bouton upvote (toggle) :
+
+- Connecté : bouton vert si déjà voté, gris sinon. Cliquer à nouveau annule le vote.
+- Non connecté : compteur affiché en lecture seule + lien vers login.
+
+```blade
+@auth
+    <form action="{{ route('localisations.vote', $localisation) }}" method="POST">
+        @csrf
+        <button type="submit"
+                class="{{ $userHasVoted ? 'bg-green-600 text-white' : 'bg-gray-100 ...' }} ...">
+            👍 {{ $localisation->upvotes_count }}
+        </button>
+    </form>
+@else
+    <span>👍 {{ $localisation->upvotes_count }}</span>
+    <a href="{{ route('login') }}">Connectez-vous</a> pour voter.
+@endauth
+```
+
+**`films/show.blade.php`** — boutons upvote + downvote :
+
+- Connecté : bouton vert si upvote actif, rouge si downvote actif. Cliquer sur le même bouton annule le vote, cliquer sur l'autre change de sens.
+- Non connecté : compteurs en lecture seule + lien vers login.
+- Chaque bouton envoie un champ caché `is_upvote` (valeur `1` ou `0`) en POST sur `films.vote`.
+
+```blade
+@auth
+    {{-- Upvote --}}
+    <form action="{{ route('films.vote', $film) }}" method="POST">
+        @csrf
+        <input type="hidden" name="is_upvote" value="1">
+        <button class="{{ $userVote?->is_upvote === true ? 'bg-green-600 text-white' : '...' }} ...">
+            👍 {{ $film->upvotes_count }}
+        </button>
+    </form>
+    {{-- Downvote --}}
+    <form action="{{ route('films.vote', $film) }}" method="POST">
+        @csrf
+        <input type="hidden" name="is_upvote" value="0">
+        <button class="{{ $userVote?->is_upvote === false ? 'bg-red-600 text-white' : '...' }} ...">
+            👎 {{ $film->downvotes_count }}
+        </button>
+    </form>
+@else
+    <span>👍 {{ $film->upvotes_count }}</span>
+    <span>👎 {{ $film->downvotes_count }}</span>
+    <a href="{{ route('login') }}">Connectez-vous</a> pour voter.
+@endauth
+```
+
+### 9. Vérification
+
+1. Lancer le worker dans un terminal dédié : `php artisan queue:listen`
+2. Se connecter et cliquer sur un bouton de vote
+3. Le terminal doit afficher : `App\Jobs\RecalculateLocalisationVotes` (ou `RecalculateFilmVotes`) avec statut `DONE`
+4. Rafraîchir la page → le compteur est mis à jour et le bouton est colorié
 
 ---
 

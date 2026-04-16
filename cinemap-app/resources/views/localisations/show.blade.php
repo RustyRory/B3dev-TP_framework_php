@@ -71,11 +71,27 @@
                             <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Ajouté par</dt>
                             <dd class="text-gray-900 dark:text-gray-100">{{ $localisation->user->name ?? '—' }}</dd>
                         </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Votes</dt>
-                            <dd class="text-gray-900 dark:text-gray-100">{{ $localisation->upvotes_count }}</dd>
-                        </div>
                     </dl>
+
+                    {{-- Bouton upvote --}}
+                    <div class="mt-6 flex items-center gap-3">
+                        @auth
+                            <form action="{{ route('localisations.vote', $localisation) }}" method="POST">
+                                @csrf
+                                <button type="submit"
+                                        class="{{ $userHasVoted ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300' }} px-4 py-2 rounded-lg font-medium hover:opacity-80 transition">
+                                    +{{ $localisation->upvotes_count }}
+                                </button>
+                            </form>
+                        @else
+                            <span class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium">
+                                +{{ $localisation->upvotes_count }}
+                            </span>
+                            <span class="text-sm text-gray-500 dark:text-gray-400">
+                                <a href="{{ route('login') }}" class="text-blue-600 hover:underline">Connectez-vous</a> pour voter.
+                            </span>
+                        @endauth
+                    </div>
                 </div>
             </div>
 

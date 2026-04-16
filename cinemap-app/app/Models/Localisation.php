@@ -19,7 +19,6 @@ class Localisation extends Model
         'country',
         'description',
         'photo_url',
-        'upvotes_count',
     ];
 
     public function film(): BelongsTo

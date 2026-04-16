@@ -4,6 +4,8 @@ use App\Http\Controllers\FilmController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LocalisationController;
 use App\Http\Controllers\ProfileController;
+use App\Models\Film;
+use App\Models\Localisation;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -13,7 +15,15 @@ Route::get('/', function () {
 Route::get('/home', [HomeController::class, 'index'])->name('home');
 
 Route::get('/dashboard', function () {
-    return view('dashboard');
+    return view('dashboard', [
+        'totalFilms'          => Film::count(),
+        'totalLocalisations'  => Localisation::count(),
+        'totalFilmUpvotes'    => Film::sum('upvotes_count'),
+        'totalFilmDownvotes'  => Film::sum('downvotes_count'),
+        'totalLocVotes'       => Localisation::sum('upvotes_count'),
+        'topFilms'            => Film::orderByDesc('upvotes_count')->take(5)->get(['id', 'name', 'upvotes_count', 'downvotes_count']),
+        'topLocalisations'    => Localisation::with('film')->orderByDesc('upvotes_count')->take(5)->get(['id', 'film_id', 'name', 'upvotes_count']),
+    ]);
 })->middleware(['auth', 'admin'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
@@ -27,6 +37,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/localisations/{localisation}/edit', [LocalisationController::class, 'edit'])->name('localisations.edit');
     Route::put('/localisations/{localisation}', [LocalisationController::class, 'update'])->name('localisations.update');
     Route::delete('/localisations/{localisation}', [LocalisationController::class, 'destroy'])->name('localisations.destroy');
+
+    Route::post('/localisations/{localisation}/vote', [LocalisationController::class, 'vote'])->name('localisations.vote');
+    Route::post('/films/{film}/vote', [FilmController::class, 'vote'])->name('films.vote');
 });
 
 // Dashboard — réservé aux admins
