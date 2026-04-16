@@ -492,12 +492,54 @@ User::factory()->create([
 | Modifier / supprimer **ses** emplacements | Oui | Oui |
 | Modifier / supprimer **tous** les emplacements | Non | Oui |
 
-### Checklist
+1. routes/web.php 
 
-- [ ] Champ `is_admin` ajouté
-- [ ] Middleware `admin` créé et enregistré
-- [ ] Routes admin protégées
-- [ ] Un utilisateur classique ne peut modifier que ses propres emplacements
+Déjà fait
+
+2. LocalisationController.php — modifier edit, update, destroy
+
+Actuellement la règle est : propriétaire uniquement. Il faut la changer en : propriétaire OU admin.
+
+```php
+// Actuellement :
+abort_if(auth()->id() !== $localisation->user_id, 403);
+
+// À remplacer par :
+abort_if(
+    auth()->id() !== $localisation->user_id && ! auth()->user()->is_admin,
+    403
+);
+```
+
+À appliquer dans les 3 méthodes : edit(), update(), destroy().
+
+3. Vues — masquer les boutons dashboard aux non-admins
+
+`films/show.blade.php` et `localisations/index.blade.php`
+Les boutons "Modifier"/"Supprimer" dans la vue `films/show` sur les localisations doivent aussi tenir compte de l'admin :
+
+```php
+// Actuellement :
+@if (auth()->id() === $localisation->user_id)
+
+// À remplacer par :
+@if (auth()->id() === $localisation->user_id || auth()->user()->is_admin)
+navigation.blade.php
+Le lien "Dashboard" dans la nav ne devrait être visible que pour les admins :
+
+
+// Actuellement :
+@auth
+    <x-nav-link :href="route('dashboard')">Dashboard</x-nav-link>
+@endauth
+
+// À remplacer par :
+@auth
+    @if (auth()->user()->is_admin)
+        <x-nav-link :href="route('dashboard')">Dashboard</x-nav-link>
+    @endif
+@endauth
+```
 
 ---
 
