@@ -97,7 +97,7 @@
                         </div>
 
                         @auth
-                            @if (auth()->id() === $localisation->user_id)
+                            @if (auth()->id() === $localisation->user_id || auth()->user()->is_admin)
                                 <div class="flex gap-2 flex-shrink-0">
                                     <a href="{{ route('localisations.edit', $localisation) }}"
                                        class="text-xs text-indigo-600 hover:text-indigo-900 dark:text-indigo-400">
