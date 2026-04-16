@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('country');
             $table->text('description');
             $table->string('photo_url')->nullable();
+            $table->unsignedInteger('upvotes_count')->default(0);
             $table->timestamps();
         });
     }

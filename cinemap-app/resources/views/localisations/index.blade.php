@@ -35,6 +35,7 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Pays</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Film</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Ajouté par</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-green-600 uppercase tracking-wider">Upvotes</th>
                             <th class="px-6 py-3"></th>
                         </tr>
                     </thead>
@@ -59,6 +60,7 @@
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ $localisation->user->name ?? '—' }}</td>
+                                <td class="px-6 py-4 font-semibold text-green-600">+{{ $localisation->upvotes_count }}</td>
                                 <td class="px-6 py-4 text-right space-x-2">
                                     <a href="{{ route('localisations.edit', $localisation) }}"
                                        class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400">Modifier</a>
@@ -75,7 +77,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                                <td colspan="7" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                                     Aucune localisation pour le moment.
                                 </td>
                             </tr>

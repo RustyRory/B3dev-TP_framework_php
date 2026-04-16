@@ -22,9 +22,41 @@
                         @endif
 
                         <div class="flex-1">
-                            <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-1">
-                                {{ $film->name }}
-                            </h3>
+                            {{-- Titre + votes film --}}
+                            <div class="flex items-start justify-between gap-4 mb-1">
+                                <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">
+                                    {{ $film->name }}
+                                </h3>
+                                <div class="flex items-center gap-1 flex-shrink-0">
+                                    @auth
+                                        @php $filmVote = $filmVotes->get($film->id); @endphp
+                                        <form action="{{ route('films.vote', $film) }}" method="POST">
+                                            @csrf
+                                            <input type="hidden" name="is_upvote" value="1">
+                                            <button type="submit"
+                                                    class="{{ $filmVote?->is_upvote === true ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300' }} text-sm px-3 py-1 rounded-l-md font-medium hover:opacity-80 transition border-r border-white/20">
+                                                +{{ $film->upvotes_count }}
+                                            </button>
+                                        </form>
+                                        <form action="{{ route('films.vote', $film) }}" method="POST">
+                                            @csrf
+                                            <input type="hidden" name="is_upvote" value="0">
+                                            <button type="submit"
+                                                    class="{{ $filmVote?->is_upvote === false ? 'bg-red-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300' }} text-sm px-3 py-1 rounded-r-md font-medium hover:opacity-80 transition">
+                                                -{{ $film->downvotes_count }}
+                                            </button>
+                                        </form>
+                                    @else
+                                        <span class="text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 py-1 rounded-l-md font-medium">
+                                            +{{ $film->upvotes_count }}
+                                        </span>
+                                        <span class="text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 py-1 rounded-r-md font-medium">
+                                            -{{ $film->downvotes_count }}
+                                        </span>
+                                    @endauth
+                                </div>
+                            </div>
+
                             <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">
                                 {{ $film->producer }} &mdash; {{ $film->release_year }} &mdash; {{ $film->time }} min
                             </p>
@@ -35,7 +67,7 @@
                                 {{ $film->genres }}
                             </span>
 
-                            <div class="mt-4 flex gap-3">
+                            <div class="mt-4 flex flex-wrap gap-3 items-center">
                                 <a href="{{ route('films.show', $film) }}"
                                    class="text-sm bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-800 px-4 py-2 rounded-md hover:bg-gray-700 dark:hover:bg-gray-300">
                                     Plus d'infos
@@ -58,26 +90,40 @@
                             </h4>
                             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                 @foreach ($film->localisations as $localisation)
-                                    <a href="{{ route('localisations.show', $localisation) }}"
-                                       class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 transition">
+                                    <div class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 transition">
                                         @if ($localisation->photo_url)
                                             <img src="{{ $localisation->photo_url }}" alt="{{ $localisation->name }}"
-                                                 class="w-12 h-12 object-cover rounded flex-shrink-0"
+                                                 class="w-10 h-10 object-cover rounded flex-shrink-0"
                                                  onerror="this.style.display='none'" />
                                         @else
-                                            <div class="w-12 h-12 rounded bg-gray-200 dark:bg-gray-600 flex items-center justify-center flex-shrink-0 text-lg">
+                                            <div class="w-10 h-10 rounded bg-gray-200 dark:bg-gray-600 flex items-center justify-center flex-shrink-0 text-base">
                                                 📍
                                             </div>
                                         @endif
-                                        <div class="min-w-0">
-                                            <p class="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">
+                                        <a href="{{ route('localisations.show', $localisation) }}" class="flex-1 min-w-0">
+                                            <p class="font-medium text-gray-900 dark:text-gray-100 text-sm truncate hover:underline">
                                                 {{ $localisation->name }}
                                             </p>
                                             <p class="text-xs text-gray-500 dark:text-gray-400">
                                                 {{ $localisation->city }}, {{ $localisation->country }}
                                             </p>
-                                        </div>
-                                    </a>
+                                        </a>
+                                        {{-- Upvote localisation --}}
+                                        @auth
+                                            @php $locVoted = $localisationVotes->has($localisation->id); @endphp
+                                            <form action="{{ route('localisations.vote', $localisation) }}" method="POST" class="flex-shrink-0">
+                                                @csrf
+                                                <button type="submit"
+                                                        class="{{ $locVoted ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300' }} text-xs px-2 py-1 rounded font-medium hover:opacity-80 transition">
+                                                    +{{ $localisation->upvotes_count }}
+                                                </button>
+                                            </form>
+                                        @else
+                                            <span class="flex-shrink-0 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded font-medium">
+                                                +{{ $localisation->upvotes_count }}
+                                            </span>
+                                        @endauth
+                                    </div>
                                 @endforeach
                             </div>
                         </div>
