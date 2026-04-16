@@ -6,6 +6,8 @@ use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Database\Seeders\FilmSeeder;
+use Database\Seeders\LocalisationSeeder;
+
 
 class DatabaseSeeder extends Seeder
 {
@@ -25,6 +27,10 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             FilmSeeder::class,
+        ]);
+
+        $this->call([
+            LocalisationSeeder::class,
         ]);
     }
 }

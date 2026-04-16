@@ -7,7 +7,7 @@ Chaque étape doit fonctionner avant de passer à la suivante.
 
 ## Avant de commencer
 
-Installe le projet en suivant [INSTALL.md](../INSTALL.md), puis vérifie que :
+Installer le projet en suivant [INSTALL.md](../INSTALL.md), puis vérifier que :
 
 - `composer run dev` lance sans erreur
 - [http://localhost:8000](http://localhost:8000) répond
@@ -114,7 +114,7 @@ return redirect()->intended(route('home', absolute: false));
 
 ## Étape 2 — Les 2 CRUDs métier
 
-**Objectif :** gérer les films et les emplacements de tournage.
+**Objectif :** gérer les films et les localisations de tournage.
 
 ### Modèle de données
 
@@ -134,21 +134,22 @@ $table->unsignedInteger('upvotes')->default(0);
 $table->unsignedInteger('downvotes')->default(0);
 ```
 
-**Location**
+**Localisation**
 
 ```php
-$table->foreignId('film_id')->constrained();
-$table->foreignId('user_id')->constrained();
+$table->foreignId('film_id')->constrained()->cascadeOnDelete();
+$table->foreignId('user_id')->constrained()->cascadeOnDelete();
 $table->string('name');
 $table->string('city');
 $table->string('country');
 $table->text('description');
+$table->string('photo_url')->nullable();
 $table->integer('upvotes_count')->default(0);
 ```
 
 ### Ce qu'il faut faire
 
-Pour chaque modèle, suivre le workflow Laravel :
+Créer les fichiers nécessaires via Artisan :
 
 ```bash
 php artisan make:migration create_films_table
@@ -159,12 +160,15 @@ php artisan make:controller FilmController
 ```
 
 ```bash
-php artisan make:migration create_locations_table
-php artisan make:model Location
-php artisan make:controller LocationController
+php artisan make:migration create_localisations_table
+php artisan make:model Localisation
+php artisan make:factory LocalisationFactory
+php artisan make:seeder LocalisationSeeder
+php artisan make:controller LocalisationController
+php artisan make:controller HomeController
 ```
 
-#### Model — points clés
+#### Models
 
 ```php
 // app/Models/Film.php
@@ -177,88 +181,199 @@ class Film extends Model
         'genres', 'synopsis', 'poster_url', 'trailer_url',
         'actors', 'upvotes', 'downvotes',
     ];
+
+    public function localisations(): HasMany
+    {
+        return $this->hasMany(Localisation::class);
+    }
+}
+```
+
+```php
+// app/Models/Localisation.php
+class Localisation extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'film_id', 'user_id', 'name', 'city', 'country',
+        'description', 'photo_url', 'upvotes_count',
+    ];
+
+    public function film(): BelongsTo
+    {
+        return $this->belongsTo(Film::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 }
 ```
 
 > Attention : `#[Fillable([...])]` n'est **pas** une syntaxe PHP valide. Il faut utiliser la propriété `$fillable`.
 
-#### Controller — imports obligatoires
+> Les `cascadeOnDelete()` sur les FK de `localisations` sont indispensables : sans eux, supprimer un film lève une erreur de contrainte d'intégrité SQLite.
 
-```php
-use App\Models\Film;
-use Illuminate\Contracts\View\View;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
-```
+#### Seeders
 
-#### Routes — ne pas oublier l'import
-
-```php
-// routes/web.php
-use App\Http\Controllers\FilmController;
-```
-
-#### Seeder — appeler depuis DatabaseSeeder
+Le `LocalisationSeeder` doit être appelé **après** `FilmSeeder` car il a besoin des IDs de films existants. Le `user_id` vient de l'utilisateur créé dans `DatabaseSeeder` :
 
 ```php
 // database/seeders/DatabaseSeeder.php
-$this->call([
-    FilmSeeder::class,
-]);
+User::factory()->create(['name' => 'Test User', 'email' => 'test@example.com']);
+
+$this->call([FilmSeeder::class]);
+$this->call([LocalisationSeeder::class]);
 ```
-
-#### Pour chaque contrôleur, implémenter :
-
-| Méthode | Route | Description |
-|---|---|---|
-| `index` | GET `/films` | Liste |
-| `create` | GET `/films/create` | Formulaire de création |
-| `store` | POST `/films` | Enregistrement |
-| `show` | GET `/films/{film}` | Détail |
-| `edit` | GET `/films/{film}/edit` | Formulaire de modification |
-| `update` | PUT `/films/{film}` | Mise à jour |
-| `destroy` | DELETE `/films/{film}` | Suppression |
-
-> Pour `Localisation`, lors de la création, l'utilisateur doit choisir un film dans une liste déroulante et l'emplacement doit être rattaché à l'utilisateur connecté (`auth()->id()`).
-
-#### Vues à créer
-
-```
-resources/views/films/
-├── index.blade.php   — liste paginée + bouton suppression
-├── create.blade.php  — formulaire de création
-├── edit.blade.php    — formulaire pré-rempli (old() + valeurs du modèle)
-└── show.blade.php    — détail du film
-```
-
-Toutes les vues étendent `<x-app-layout>` et utilisent les composants Breeze (`<x-input-label>`, `<x-text-input>`, `<x-input-error>`, `<x-primary-button>`).
-
-Pour la suppression, utiliser un formulaire POST avec `@method('DELETE')` et `@csrf` :
 
 ```php
-<form action="{{ route('films.destroy', $film) }}" method="POST"
-      onsubmit="return confirm('Supprimer ce film ?')">
-    @csrf
-    @method('DELETE')
-    <button type="submit">Supprimer</button>
-</form>
-```
+// database/seeders/LocalisationSeeder.php
+$userId = User::first()->id;
+$films  = Film::pluck('id');
 
-#### Réinitialiser la BDD avec les seeders
+Localisation::query()->firstOrCreate(['name' => 'Central Park'], [
+    'film_id' => $films[0], 'user_id' => $userId,
+    'city' => 'New York', 'country' => 'USA', ...
+]);
+```
 
 ```bash
 php artisan migrate:fresh --seed
 ```
 
-### Checklist
+#### Controllers
 
-- [x] Migration `films` lancée (avec toutes les colonnes)
-- [ ] Migration `locations` lancée
-- [x] CRUD Film complet (liste, création, édition, suppression)
-- [x] Vues Blade films créées (index, create, edit, show)
-- [ ] CRUD Location complet
-- [ ] Création d'un emplacement rattaché à un film et à l'utilisateur connecté
+**FilmController** : CRUD standard. La validation se fait dans une méthode privée `validatedData()` pour éviter la duplication entre `store` et `update`.
+
+**LocalisationController** :
+- `store()` : injecter `user_id` depuis `auth()->id()`, **ne pas** le faire passer par le formulaire.
+- `edit()`, `update()`, `destroy()` : vérifier que l'utilisateur est le propriétaire avant d'agir.
+
+```php
+// Vérification du propriétaire dans edit/update/destroy
+abort_if(auth()->id() !== $localisation->user_id, 403);
+```
+
+- `create()` et `edit()` : passer la liste des films pour le `<select>`.
+
+```php
+public function create(): View
+{
+    return view('localisations.create', [
+        'films' => Film::query()->orderBy('name')->pluck('name', 'id'),
+    ]);
+}
+```
+
+**HomeController** : charge tous les films avec leurs localisations en eager load.
+
+```php
+public function index(): View
+{
+    $films = Film::query()->with('localisations')->orderBy('name')->get();
+    return view('home', ['films' => $films]);
+}
+```
+
+#### Routes
+
+> **Important :** les routes paramétrées publiques (`/films/{film}`, `/localisations/{localisation}`) doivent être déclarées **après** le groupe `auth`, sinon `/films/create` serait capturé par `{film}` avant la route littérale.
+
+```php
+// routes/web.php
+Route::get('/home', [HomeController::class, 'index'])->name('home');
+
+Route::middleware('auth')->group(function () {
+    // Dashboard — gestion des films (futur : admin uniquement)
+    Route::get('/films', [FilmController::class, 'index'])->name('films.index');
+    Route::get('/films/create', [FilmController::class, 'create'])->name('films.create');
+    Route::post('/films', [FilmController::class, 'store'])->name('films.store');
+    Route::get('/films/{film}/edit', [FilmController::class, 'edit'])->name('films.edit');
+    Route::put('/films/{film}', [FilmController::class, 'update'])->name('films.update');
+    Route::delete('/films/{film}', [FilmController::class, 'destroy'])->name('films.destroy');
+
+    // Dashboard — liste de toutes les localisations (futur : admin uniquement)
+    Route::get('/localisations', [LocalisationController::class, 'index'])->name('localisations.index');
+
+    // Localisations — actions de l'utilisateur connecté (ses propres localisations)
+    Route::get('/localisations/create', [LocalisationController::class, 'create'])->name('localisations.create');
+    Route::post('/localisations', [LocalisationController::class, 'store'])->name('localisations.store');
+    Route::get('/localisations/{localisation}/edit', [LocalisationController::class, 'edit'])->name('localisations.edit');
+    Route::put('/localisations/{localisation}', [LocalisationController::class, 'update'])->name('localisations.update');
+    Route::delete('/localisations/{localisation}', [LocalisationController::class, 'destroy'])->name('localisations.destroy');
+});
+
+// Routes publiques — déclarées APRÈS le groupe auth
+Route::get('/films/{film}', [FilmController::class, 'show'])->name('films.show');
+Route::get('/localisations/{localisation}', [LocalisationController::class, 'show'])->name('localisations.show');
+```
+
+#### Logique de navigation
+
+Le site est divisé en deux espaces distincts :
+
+| Espace | URL | Accès | Rôle |
+|---|---|---|---|
+| Site public | `/home`, `/films/{film}`, `/localisations/{id}` | Tout le monde | Consultation |
+| Espace utilisateur | `/localisations/create`, `/localisations/{id}/edit` | Connecté | Gérer ses localisations |
+| Dashboard | `/dashboard`, `/films`, `/localisations` | Connecté (futur : admin) | Administration |
+
+**Règles par action :**
+
+| Action | Visiteur | Utilisateur connecté | Admin (futur) |
+|---|---|---|---|
+| Voir les films et localisations | Oui | Oui | Oui |
+| Ajouter une localisation | Non | Oui | Oui |
+| Modifier / supprimer **sa** localisation | Non | Oui | Oui |
+| Modifier / supprimer **toutes** les localisations | Non | Non | Oui |
+| Ajouter / modifier / supprimer un film | Non | Non | Oui |
+
+**Navigation (`layouts/navigation.blade.php`) :**
+
+- Lien **Accueil** → visible pour tous
+- Lien **Dashboard** → visible uniquement si `@auth`
+- Dropdown utilisateur (profil, déconnexion) → visible uniquement si `@auth`
+- Boutons **Se connecter / S'inscrire** → visibles uniquement si `@guest`
+
+**Boutons conditionnels dans les vues :**
+
+```php
+{{-- Bouton "Ajouter une localisation" — visible uniquement si connecté --}}
+@auth
+    <a href="{{ route('localisations.create', ['film_id' => $film->id]) }}">
+        + Ajouter une localisation
+    </a>
+@endauth
+
+{{-- Boutons modifier/supprimer — visibles uniquement pour le propriétaire --}}
+@auth
+    @if (auth()->id() === $localisation->user_id)
+        <a href="{{ route('localisations.edit', $localisation) }}">Modifier</a>
+        {{-- formulaire DELETE --}}
+    @endif
+@endauth
+```
+
+#### Vues
+
+```
+resources/views/
+├── home.blade.php                     — liste publique des films avec localisations
+├── films/
+│   ├── index.blade.php                — dashboard : liste paginée + actions CRUD
+│   ├── create.blade.php               — dashboard : formulaire de création
+│   ├── edit.blade.php                 — dashboard : formulaire pré-rempli
+│   └── show.blade.php                 — public : détail film + localisations + bouton ajout
+└── localisations/
+    ├── index.blade.php                — dashboard : toutes les localisations
+    ├── create.blade.php               — formulaire avec select film (pré-sélectionné via ?film_id=)
+    ├── edit.blade.php                 — formulaire pré-rempli (propriétaire uniquement)
+    └── show.blade.php                 — public : détail localisation + boutons si propriétaire
+```
+
+Toutes les vues étendent `<x-app-layout>` et utilisent les composants Breeze (`<x-input-label>`, `<x-text-input>`, `<x-input-error>`, `<x-primary-button>`).
 
 ---
 
