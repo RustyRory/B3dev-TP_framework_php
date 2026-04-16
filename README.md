@@ -45,7 +45,7 @@ Consultez le guide complet : [INSTALL.md](INSTALL.md)
 ### Démarrage rapide
 
 ```bash
-git clone <url-du-repo> && cd B3dev-TP_framework_php
+git clone git@github.com:RustyRory/B3dev-TP_framework_php.git && cd B3dev-TP_framework_php
 composer install && npm install
 cp .env.example .env
 php artisan key:generate
