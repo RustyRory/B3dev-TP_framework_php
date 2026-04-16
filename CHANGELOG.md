@@ -27,6 +27,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.0] - 16/04/2026
+
+### Ajouté
+
+- Champ booléen `is_admin` sur la table `users` (migration + cast `bool` dans le modèle `User`)
+- Factory state `admin()` sur `UserFactory` pour créer des utilisateurs administrateurs
+- `AdminSeeder` : crée le compte admin par défaut (`admin@cinemap.fr` / `Admin123!`) via le state factory
+- `AdminMiddleware` (`app/Http/Middleware/AdminMiddleware.php`) : renvoie un 403 si l'utilisateur n'est pas authentifié ou n'a pas `is_admin = true`
+- Alias `admin` enregistré dans `bootstrap/app.php` pour utiliser le middleware dans les routes
+
+### Changement
+
+- Route `/dashboard` : middleware `['auth', 'admin']` — accès réservé aux administrateurs
+- Routes CRUD Films et route `localisations.index` déplacées dans un groupe `['auth', 'admin']`
+- `LocalisationController` (`edit`, `update`, `destroy`) : la vérification du propriétaire autorise désormais aussi les admins (`|| auth()->user()->is_admin`)
+- Navigation (`layouts/navigation.blade.php`) : lien « Dashboard » conditionnel — affiché uniquement si `auth()->user()->is_admin`, sur desktop et mobile
+- Vue `films.show` : boutons « Modifier » / « Supprimer » d'une localisation visibles pour le propriétaire **ou** un admin
+
+---
+
 ## [0.2.0] - 16/04/2026
 
 ### Ajouté
