@@ -739,25 +739,52 @@ public function handle(): void
 `LocalisationController@vote` — toggle (re-cliquer = annuler le vote) :
 
 ```php
-$existing = LocalisationVote::where(['user_id' => auth()->id(), 'localisation_id' => $localisation->id])->first();
-$existing
-    ? $existing->delete()
-    : LocalisationVote::create(['user_id' => auth()->id(), 'localisation_id' => $localisation->id]);
-RecalculateLocalisationVotes::dispatch($localisation);
+public function vote(Localisation $localisation): RedirectResponse
+{
+    $existing = LocalisationVote::where([
+        'user_id'          => auth()->id(),
+        'localisation_id'  => $localisation->id,
+    ])->first();
+
+    $existing
+        ? $existing->delete()
+        : LocalisationVote::create([
+            'user_id'         => auth()->id(),
+            'localisation_id' => $localisation->id,
+        ]);
+
+    RecalculateLocalisationVotes::dispatch($localisation);
+
+    return back();
+}
 ```
 
 `FilmController@vote` — toggle ou changement de sens :
 
 ```php
-$existing = FilmVote::where(['user_id' => auth()->id(), 'film_id' => $film->id])->first();
-if ($existing) {
-    $existing->is_upvote === $request->boolean('is_upvote')
-        ? $existing->delete()
-        : $existing->update(['is_upvote' => $request->boolean('is_upvote')]);
-} else {
-    FilmVote::create(['user_id' => auth()->id(), 'film_id' => $film->id, 'is_upvote' => $request->boolean('is_upvote')]);
+public function vote(Request $request, Film $film): RedirectResponse
+{
+    $existing = FilmVote::where([
+        'user_id' => auth()->id(),
+        'film_id' => $film->id,
+    ])->first();
+
+    if ($existing) {
+        $existing->is_upvote === $request->boolean('is_upvote')
+            ? $existing->delete()
+            : $existing->update(['is_upvote' => $request->boolean('is_upvote')]);
+    } else {
+        FilmVote::create([
+            'user_id'   => auth()->id(),
+            'film_id'   => $film->id,
+            'is_upvote' => $request->boolean('is_upvote'),
+        ]);
+    }
+
+    RecalculateFilmVotes::dispatch($film);
+
+    return back();
 }
-RecalculateFilmVotes::dispatch($film);
 ```
 
 ### 7. Configuration de la queue
@@ -771,20 +798,6 @@ php artisan queue:table
 php artisan migrate
 php artisan queue:listen
 ```
-
-### Checklist
-
-- [x] Anciens compteurs supprimés des migrations, modèles, factories et vues
-- [x] Compteurs `upvotes_count` / `downvotes_count` remis dans les migrations existantes
-- [x] Table `localisation_votes` créée (sans doublon `created_at`)
-- [x] Table `film_votes` créée avec `is_upvote` (sans doublon `created_at`)
-- [x] Modèles `LocalisationVote` et `FilmVote` créés avec `$fillable`, casts et relations
-- [ ] Routes de vote ajoutées dans le groupe `middleware('auth')`
-- [x] Jobs `RecalculateLocalisationVotes` et `RecalculateFilmVotes` avec constructeur et imports
-- [ ] Actions `vote` implémentées dans `LocalisationController` et `FilmController`
-- [ ] Bouton upvote visible sur la page d'une localisation (toggle)
-- [ ] Boutons upvote/downvote visibles sur la page d'un film (toggle + changement de sens)
-- [ ] Queue configurée (`QUEUE_CONNECTION=database`) et worker lancé
 
 ---
 
