@@ -21,17 +21,6 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // Dashboard — gestion des films (auth, plus tard admin)
-    Route::get('/films', [FilmController::class, 'index'])->name('films.index');
-    Route::get('/films/create', [FilmController::class, 'create'])->name('films.create');
-    Route::post('/films', [FilmController::class, 'store'])->name('films.store');
-    Route::get('/films/{film}/edit', [FilmController::class, 'edit'])->name('films.edit');
-    Route::put('/films/{film}', [FilmController::class, 'update'])->name('films.update');
-    Route::delete('/films/{film}', [FilmController::class, 'destroy'])->name('films.destroy');
-
-    // Dashboard — liste de toutes les localisations (auth, plus tard admin)
-    Route::get('/localisations', [LocalisationController::class, 'index'])->name('localisations.index');
-
     // Localisations — actions utilisateur (ses propres localisations)
     Route::get('/localisations/create', [LocalisationController::class, 'create'])->name('localisations.create');
     Route::post('/localisations', [LocalisationController::class, 'store'])->name('localisations.store');
@@ -39,6 +28,19 @@ Route::middleware('auth')->group(function () {
     Route::put('/localisations/{localisation}', [LocalisationController::class, 'update'])->name('localisations.update');
     Route::delete('/localisations/{localisation}', [LocalisationController::class, 'destroy'])->name('localisations.destroy');
 });
+
+// Dashboard — réservé aux admins
+Route::middleware(['auth', 'admin'])->group(function () {
+    Route::get('/films', [FilmController::class, 'index'])->name('films.index');
+    Route::get('/films/create', [FilmController::class, 'create'])->name('films.create');
+    Route::post('/films', [FilmController::class, 'store'])->name('films.store');
+    Route::get('/films/{film}/edit', [FilmController::class, 'edit'])->name('films.edit');
+    Route::put('/films/{film}', [FilmController::class, 'update'])->name('films.update');
+    Route::delete('/films/{film}', [FilmController::class, 'destroy'])->name('films.destroy');
+
+    Route::get('/localisations', [LocalisationController::class, 'index'])->name('localisations.index');
+});
+
 
 // Routes publiques paramétrées — définies APRÈS le groupe auth
 // pour que /films/create et /localisations/create soient capturés en premier

@@ -383,27 +383,104 @@ Toutes les vues étendent `<x-app-layout>` et utilisent les composants Breeze (`
 
 ### Ce qu'il faut faire
 
-1. Ajouter le champ `is_admin` à la table `users` :
+#### Ajouter le champ `is_admin` à la table `users` :
 
 ```bash
 php artisan make:migration add_is_admin_to_users_table
 ```
 
 ```php
-$table->boolean('is_admin')->default(false);
+public function up(): void
+{
+    Schema::table('users', function (Blueprint $table) {
+        $table->boolean('is_admin')->default(false)->after('password');
+    });
+}
+
+public function down(): void
+{
+    Schema::table('users', function (Blueprint $table) {
+        $table->dropColumn('is_admin');
+    });
+}
 ```
 
-2. Créer le middleware :
+```bash
+php artisan migrate
+```
+
+#### Créer le middleware :
+
+1. Générer le middleware
 
 ```bash
 php artisan make:middleware AdminMiddleware
 ```
+Cela crée `app/Http/Middleware/AdminMiddleware.php`.
 
-Dans `handle()`, vérifier `auth()->user()->is_admin`.
+2. Écrire la logique dans handle()
 
-3. Enregistrer le middleware dans `bootstrap/app.php` (Laravel 11) ou `Kernel.php` (Laravel 10).
+Le fichier généré contient une méthode handle(). Il faut y vérifier que l'utilisateur est connecté et admin, sinon rediriger ou retourner une 403 :
 
-4. Appliquer les règles :
+```php
+public function handle(Request $request, Closure $next): Response
+{
+    if (! auth()->check() || ! auth()->user()->is_admin) {
+        abort(403);
+    }
+
+    return $next($request);
+}
+```
+
+3. Enregistrer le middleware dans bootstrap/app.php 
+
+Les middlewares s'enregistrent dans `bootstrap/app.php` via `withMiddleware()` :
+
+```php
+->withMiddleware(function (Middleware $middleware) {
+    $middleware->alias([
+        'admin' => \App\Http\Middleware\AdminMiddleware::class,
+    ]);
+})
+```
+
+alias permet de lui donner un nom court ('admin') pour l'utiliser dans les routes.
+
+4. Utiliser le middleware sur les routes
+
+Une fois enregistré, protéger les routes du dashboard :
+
+```php
+// Dashboard — réservé aux admins
+Route::middleware(['auth', 'admin'])->group(function () {
+    Route::get('/films', [FilmController::class, 'index'])->name('films.index');
+    Route::get('/films/create', [FilmController::class, 'create'])->name('films.create');
+    Route::post('/films', [FilmController::class, 'store'])->name('films.store');
+    Route::get('/films/{film}/edit', [FilmController::class, 'edit'])->name('films.edit');
+    Route::put('/films/{film}', [FilmController::class, 'update'])->name('films.update');
+    Route::delete('/films/{film}', [FilmController::class, 'destroy'])->name('films.destroy');
+
+    Route::get('/localisations', [LocalisationController::class, 'index'])->name('localisations.index');
+});
+```
+
+auth vérifie que l'utilisateur est connecté, admin vérifie qu'il est admin. Les deux sont nécessaires — admin seul planterait si personne n'est connecté (auth()->user() serait null).
+
+#### Seed Admin
+
+Vérifier que ça fonctionne
+Pour tester sans implémenter de page d'admin, passer temporairement is_admin = true à l'utilisateur du seeder et lui donner un mot de passe généré manuellement:
+
+```php
+User::factory()->create([
+    'name'     => 'Admin',
+    'email'    => 'admin@example.com',
+    'is_admin' => true,
+]);
+```
+
+#### Appliquer les règles :
 
 | Action | Utilisateur classique | Admin |
 |---|---|---|
