@@ -407,6 +407,7 @@ Dans `handle()`, vérifier `auth()->user()->is_admin`.
 
 | Action | Utilisateur classique | Admin |
 |---|---|---|
+| Accès dashboard | Non | Oui |
 | Créer un film | Non | Oui |
 | Modifier / supprimer un film | Non | Oui |
 | Créer un emplacement | Oui | Oui |
@@ -429,7 +430,7 @@ Dans `handle()`, vérifier `auth()->user()->is_admin`.
 ### Modèle de données
 
 ```bash
-php artisan make:migration create_location_votes_table
+php artisan make:migration create_localisation_votes_table
 ```
 
 ```php
@@ -446,7 +447,7 @@ $table->unique(['user_id', 'location_id']); // 1 vote par utilisateur
 
 ```php
 // routes/web.php
-Route::post('/locations/{location}/upvote', [LocationController::class, 'upvote'])->middleware('auth');
+Route::post('/locations/{location}/upvote', [LocalisationController::class, 'upvote'])->middleware('auth');
 ```
 
 3. Dans l'action `upvote`, enregistrer le vote et dispatcher un job :
