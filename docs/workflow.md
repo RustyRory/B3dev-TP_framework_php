@@ -799,6 +799,9 @@ php artisan migrate
 php artisan queue:listen
 ```
 
+### 8. Vérification jobs
+
+
 ---
 
 ## Étape 5 — Commande Artisan + tâche planifiée
