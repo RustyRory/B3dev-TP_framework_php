@@ -476,6 +476,7 @@ Pour tester sans implémenter de page d'admin, passer temporairement is_admin = 
 User::factory()->create([
     'name'     => 'Admin',
     'email'    => 'admin@example.com',
+    'password' => 'Admin123!',
     'is_admin' => true,
 ]);
 ```
