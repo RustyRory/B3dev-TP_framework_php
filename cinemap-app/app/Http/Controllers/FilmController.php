@@ -35,6 +35,8 @@ class FilmController extends Controller
 
     public function show(Film $film): View
     {
+        $film->load('localisations');
+
         return view('films.show', [
             'film' => $film,
         ]);

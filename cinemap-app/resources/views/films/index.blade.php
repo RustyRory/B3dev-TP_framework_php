@@ -51,6 +51,8 @@
                                 <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ $film->time }}</td>
                                 <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ $film->genres }}</td>
                                 <td class="px-6 py-4 text-right space-x-2">
+                                    <a href="{{ route('localisations.index', ['film_id' => $film->id]) }}"
+                                       class="text-blue-600 hover:text-blue-900 dark:text-blue-400">Localisations</a>
                                     <a href="{{ route('films.edit', $film) }}"
                                        class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400">Modifier</a>
 

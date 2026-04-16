@@ -1,25 +1,8 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex justify-between items-center">
-            <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-                {{ $film->name }}
-            </h2>
-            <div class="flex gap-2">
-                <a href="{{ route('films.edit', $film) }}"
-                   class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded">
-                    Modifier
-                </a>
-                <form action="{{ route('films.destroy', $film) }}" method="POST"
-                      onsubmit="return confirm('Supprimer ce film ?')">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit"
-                            class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded">
-                        Supprimer
-                    </button>
-                </form>
-            </div>
-        </div>
+        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+            {{ $film->name }}
+        </h2>
     </x-slot>
 
     <div class="py-12">
@@ -31,12 +14,14 @@
                 </div>
             @endif
 
+            {{-- Fiche film --}}
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-6 flex gap-6">
-
-                <div class="flex-shrink-0">
-                    <img src="{{ $film->poster_url }}" alt="Affiche de {{ $film->name }}"
-                         class="w-48 rounded shadow" onerror="this.style.display='none'" />
-                </div>
+                @if ($film->poster_url)
+                    <div class="flex-shrink-0">
+                        <img src="{{ $film->poster_url }}" alt="Affiche de {{ $film->name }}"
+                             class="w-48 rounded shadow" onerror="this.style.display='none'" />
+                    </div>
+                @endif
 
                 <div class="flex-1">
                     <dl class="space-y-3">
@@ -77,9 +62,67 @@
                 </div>
             </div>
 
+            {{-- Localisations --}}
+            <div class="mt-6 bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Lieux de tournage</h3>
+                    @auth
+                        <a href="{{ route('localisations.create', ['film_id' => $film->id]) }}"
+                           class="text-sm border border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400 px-3 py-1.5 rounded-md hover:bg-blue-50 dark:hover:bg-gray-700">
+                            + Ajouter une localisation
+                        </a>
+                    @endauth
+                </div>
+
+                @forelse ($film->localisations as $localisation)
+                    <div class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 mb-2">
+                        @if ($localisation->photo_url)
+                            <img src="{{ $localisation->photo_url }}" alt="{{ $localisation->name }}"
+                                 class="w-12 h-12 object-cover rounded flex-shrink-0"
+                                 onerror="this.style.display='none'" />
+                        @else
+                            <div class="w-12 h-12 rounded bg-gray-200 dark:bg-gray-600 flex items-center justify-center flex-shrink-0 text-lg">
+                                📍
+                            </div>
+                        @endif
+
+                        <div class="flex-1 min-w-0">
+                            <a href="{{ route('localisations.show', $localisation) }}"
+                               class="font-medium text-gray-900 dark:text-gray-100 hover:underline">
+                                {{ $localisation->name }}
+                            </a>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                {{ $localisation->city }}, {{ $localisation->country }}
+                            </p>
+                        </div>
+
+                        @auth
+                            @if (auth()->id() === $localisation->user_id)
+                                <div class="flex gap-2 flex-shrink-0">
+                                    <a href="{{ route('localisations.edit', $localisation) }}"
+                                       class="text-xs text-indigo-600 hover:text-indigo-900 dark:text-indigo-400">
+                                        Modifier
+                                    </a>
+                                    <form action="{{ route('localisations.destroy', $localisation) }}" method="POST"
+                                          onsubmit="return confirm('Supprimer cette localisation ?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="text-xs text-red-600 hover:text-red-900 dark:text-red-400">
+                                            Supprimer
+                                        </button>
+                                    </form>
+                                </div>
+                            @endif
+                        @endauth
+                    </div>
+                @empty
+                    <p class="text-gray-500 dark:text-gray-400 text-sm">Aucune localisation pour ce film.</p>
+                @endforelse
+            </div>
+
             <div class="mt-4">
-                <a href="{{ route('films.index') }}" class="text-gray-600 dark:text-gray-400 hover:underline">
-                    &larr; Retour à la liste
+                <a href="{{ route('home') }}" class="text-gray-600 dark:text-gray-400 hover:underline">
+                    &larr; Retour à l'accueil
                 </a>
             </div>
         </div>

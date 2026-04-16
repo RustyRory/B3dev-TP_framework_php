@@ -38,6 +38,5 @@ class FilmSeeder extends Seeder
             Film::query()->firstOrCreate(['name' => $film['name']], $film);
         }
 
-        Film::factory(2)->create();
     }
 }
