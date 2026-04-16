@@ -543,86 +543,74 @@ Le lien "Dashboard" dans la nav ne devrait être visible que pour les admins :
 
 ---
 
-## Étape 4 — Upvotes + Queue & Jobs
+## Étape 4 — Votes + Queue & Jobs
 
-**Objectif :** ajouter un bouton upvote sur les emplacements, traité en arrière-plan.
+**Objectif :** ajouter un système de vote sur les localisations (upvote uniquement) et sur les films (upvote + downvote), traité en arrière-plan via une queue.
 
-### Inventaire complet de ce qu'il faut supprimer/modifier
+### 1. Nettoyage — supprimer les anciens compteurs
 
-#### Migrations
-`create_films_table.php` 
+Avant de créer le nouveau modèle de données, supprimer les références aux anciens champs dans les fichiers suivants.
 
+#### Migrations existantes
+
+`create_films_table.php` — supprimer :
 ```php
 $table->unsignedInteger('upvotes')->default(0);
 $table->unsignedInteger('downvotes')->default(0);
 ```
-→ Supprimer
 
-`create_localisations_table.php`
-
+`create_localisations_table.php` — supprimer :
 ```php
 $table->integer('upvotes_count')->default(0);
 ```
-→ Supprimer
 
 #### Modèles
-`Film.php`
 
+`Film.php` — retirer du `$fillable` :
 ```php
 'upvotes',
 'downvotes',
 ```
-→ Retirer du $fillable.
 
-`Localisation.php`
-
+`Localisation.php` — retirer du `$fillable` :
 ```php
 'upvotes_count',
 ```
-→ Retirer du $fillable.
 
 #### Factories
-`FilmFactory.php`
 
+`FilmFactory.php` — supprimer :
 ```php
 'upvotes'   => fake()->numberBetween(0, 500),
 'downvotes' => fake()->numberBetween(0, 100),
 ```
-→ Supprimer
 
-`LocalisationFactory.php`
-
+`LocalisationFactory.php` — supprimer :
 ```php
 'upvotes_count' => fake()->numberBetween(0, 100),
 ```
-→ Supprimer
 
 #### Vues
-`localisations/index.blade.php`
 
-```php
+`localisations/index.blade.php` — supprimer la `<th>` Votes et la `<td>` correspondante :
+```html
 <td ...>{{ $localisation->upvotes_count }}</td>
 ```
-→ Supprimer la cellule
 
-`localisations/show.blade.php`
-
-```php
+`localisations/show.blade.php` — supprimer le bloc `<dt>`/`<dd>` :
+```html
 <dd ...>{{ $localisation->upvotes_count }}</dd>
 ```
-→ Supprimer le bloc <dt>/<dd> correspondant.
 
-#### migrate:fresh
+### 2. Modèle de données
 
-```php
-php artisan migrate:fresh --seed
-```
+Remettre les compteurs dénormalisés dans les migrations existantes :
 
-Recrée toutes les tables from scratch à partir des fichiers de migration modifiés. Toutes les données sont perdues.
+- `create_localisations_table.php` → `$table->unsignedInteger('upvotes_count')->default(0);`
+- `create_films_table.php` → `$table->unsignedInteger('upvotes_count')->default(0);`
+- `create_films_table.php` → `$table->unsignedInteger('downvotes_count')->default(0);`
 
-### Modèle de données
-
-Deux tables de votes distinctes :
+Créer les deux tables de votes :
 
 ```bash
 php artisan make:migration create_localisation_votes_table
@@ -634,8 +622,8 @@ php artisan make:migration create_film_votes_table
 ```php
 $table->foreignId('user_id')->constrained()->cascadeOnDelete();
 $table->foreignId('localisation_id')->constrained()->cascadeOnDelete();
-$table->timestamp('created_at');
 $table->unique(['user_id', 'localisation_id']); // 1 vote par utilisateur
+$table->timestamps();
 ```
 
 `film_votes` — upvote **et** downvote :
@@ -644,63 +632,117 @@ $table->unique(['user_id', 'localisation_id']); // 1 vote par utilisateur
 $table->foreignId('user_id')->constrained()->cascadeOnDelete();
 $table->foreignId('film_id')->constrained()->cascadeOnDelete();
 $table->boolean('is_upvote'); // true = upvote, false = downvote
-$table->timestamp('created_at');
 $table->unique(['user_id', 'film_id']); // 1 vote par utilisateur
+$table->timestamps();
 ```
 
-Compteurs dénormalisés à remettre dans les migrations existantes (avant `migrate:fresh`) :
+> **Attention :** ne pas ajouter `$table->timestamp('created_at')` manuellement — `timestamps()` génère déjà `created_at` et `updated_at`.
 
-- `localisations` → `$table->unsignedInteger('upvotes_count')->default(0);`
-- `films` → `$table->unsignedInteger('upvotes_count')->default(0);` 
-- `films` → `$table->unsignedInteger('downvotes_count')->default(0);`
+> **Attention :** si les deux migrations sont générées à la même seconde, renommer l'une d'elles avec un timestamp décalé d'une seconde pour éviter les conflits d'ordre d'exécution.
 
-### Ce qu'il faut faire
-
-1. Remettre les compteurs dans les migrations existantes, créer les deux tables de votes, puis :
+Puis recréer la base :
 
 ```bash
 php artisan migrate:fresh --seed
 ```
 
-2. Ajouter les deux routes de vote dans le groupe `middleware('auth')` :
+### 3. Modèles
+
+Créer les deux modèles :
+
+```bash
+php artisan make:model LocalisationVote
+php artisan make:model FilmVote
+```
+
+`LocalisationVote` :
 
 ```php
-// routes/web.php
+protected $fillable = ['user_id', 'localisation_id'];
+
+public function user(): BelongsTo
+{
+    return $this->belongsTo(User::class);
+}
+
+public function localisation(): BelongsTo
+{
+    return $this->belongsTo(Localisation::class);
+}
+```
+
+`FilmVote` :
+
+```php
+protected $fillable = ['user_id', 'film_id', 'is_upvote'];
+
+protected $casts = ['is_upvote' => 'boolean'];
+
+public function user(): BelongsTo
+{
+    return $this->belongsTo(User::class);
+}
+
+public function film(): BelongsTo
+{
+    return $this->belongsTo(Film::class);
+}
+```
+
+### 4. Routes
+
+Dans le groupe `middleware('auth')` existant de `routes/web.php` :
+
+```php
 Route::post('/localisations/{localisation}/vote', [LocalisationController::class, 'vote'])
     ->name('localisations.vote');
 Route::post('/films/{film}/vote', [FilmController::class, 'vote'])
     ->name('films.vote');
 ```
 
-3. Créer les deux jobs de recalcul :
+### 5. Jobs de recalcul
 
 ```bash
 php artisan make:job RecalculateLocalisationVotes
 php artisan make:job RecalculateFilmVotes
 ```
 
-`RecalculateLocalisationVotes` :
+`RecalculateLocalisationVotes` — le modèle est injecté via le constructeur :
 
 ```php
-$localisation->upvotes_count = LocalisationVote::where('localisation_id', $localisation->id)->count();
-$localisation->save();
+public function __construct(public Localisation $localisation) {}
+
+public function handle(): void
+{
+    $this->localisation->upvotes_count = LocalisationVote::where('localisation_id', $this->localisation->id)->count();
+    $this->localisation->save();
+}
 ```
 
 `RecalculateFilmVotes` :
 
 ```php
-$film->upvotes_count   = FilmVote::where('film_id', $film->id)->where('is_upvote', true)->count();
-$film->downvotes_count = FilmVote::where('film_id', $film->id)->where('is_upvote', false)->count();
-$film->save();
+public function __construct(public Film $film) {}
+
+public function handle(): void
+{
+    $this->film->upvotes_count   = FilmVote::where('film_id', $this->film->id)->where('is_upvote', true)->count();
+    $this->film->downvotes_count = FilmVote::where('film_id', $this->film->id)->where('is_upvote', false)->count();
+    $this->film->save();
+}
 ```
 
-4. Implémenter les actions dans les controllers.
+> **Attention :** ne pas oublier les imports (`use App\Models\...`) en haut de chaque fichier de job.
+
+### 6. Actions dans les controllers
 
 `LocalisationController@vote` — toggle (re-cliquer = annuler le vote) :
 
 ```php
 $existing = LocalisationVote::where(['user_id' => auth()->id(), 'localisation_id' => $localisation->id])->first();
-$existing ? $existing->delete() : LocalisationVote::create(['user_id' => auth()->id(), 'localisation_id' => $localisation->id]);
+$existing
+    ? $existing->delete()
+    : LocalisationVote::create(['user_id' => auth()->id(), 'localisation_id' => $localisation->id]);
 RecalculateLocalisationVotes::dispatch($localisation);
 ```
 
@@ -710,15 +752,15 @@ RecalculateLocalisationVotes::dispatch($localisation);
 $existing = FilmVote::where(['user_id' => auth()->id(), 'film_id' => $film->id])->first();
 if ($existing) {
     $existing->is_upvote === $request->boolean('is_upvote')
-        ? $existing->delete()                                        // même vote → annulation
-        : $existing->update(['is_upvote' => $request->boolean('is_upvote')]); // vote opposé → changement
+        ? $existing->delete()
+        : $existing->update(['is_upvote' => $request->boolean('is_upvote')]);
 } else {
     FilmVote::create(['user_id' => auth()->id(), 'film_id' => $film->id, 'is_upvote' => $request->boolean('is_upvote')]);
 }
 RecalculateFilmVotes::dispatch($film);
 ```
 
-5. Configurer la queue dans `.env` :
+### 7. Configuration de la queue
 
 ```env
 QUEUE_CONNECTION=database
@@ -727,13 +769,22 @@ QUEUE_CONNECTION=database
 ```bash
 php artisan queue:table
 php artisan migrate
-```
-
-6. Vérifier que les jobs passent bien par le worker :
-
-```bash
 php artisan queue:listen
 ```
+
+### Checklist
+
+- [x] Anciens compteurs supprimés des migrations, modèles, factories et vues
+- [x] Compteurs `upvotes_count` / `downvotes_count` remis dans les migrations existantes
+- [x] Table `localisation_votes` créée (sans doublon `created_at`)
+- [x] Table `film_votes` créée avec `is_upvote` (sans doublon `created_at`)
+- [x] Modèles `LocalisationVote` et `FilmVote` créés avec `$fillable`, casts et relations
+- [ ] Routes de vote ajoutées dans le groupe `middleware('auth')`
+- [x] Jobs `RecalculateLocalisationVotes` et `RecalculateFilmVotes` avec constructeur et imports
+- [ ] Actions `vote` implémentées dans `LocalisationController` et `FilmController`
+- [ ] Bouton upvote visible sur la page d'une localisation (toggle)
+- [ ] Boutons upvote/downvote visibles sur la page d'un film (toggle + changement de sens)
+- [ ] Queue configurée (`QUEUE_CONNECTION=database`) et worker lancé
 
 ---
 
