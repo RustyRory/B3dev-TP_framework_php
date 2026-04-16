@@ -35,6 +35,8 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Année</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Durée (min)</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Genres</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-green-600 uppercase tracking-wider">Upvotes</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-red-500 uppercase tracking-wider">Downvotes</th>
                             <th class="px-6 py-3"></th>
                         </tr>
                     </thead>
@@ -50,6 +52,8 @@
                                 <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ $film->release_year }}</td>
                                 <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ $film->time }}</td>
                                 <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ $film->genres }}</td>
+                                <td class="px-6 py-4 font-semibold text-green-600">+{{ $film->upvotes_count }}</td>
+                                <td class="px-6 py-4 font-semibold text-red-500">-{{ $film->downvotes_count }}</td>
                                 <td class="px-6 py-4 text-right space-x-2">
                                     <a href="{{ route('localisations.index', ['film_id' => $film->id]) }}"
                                        class="text-blue-600 hover:text-blue-900 dark:text-blue-400">Localisations</a>
@@ -68,7 +72,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                                <td colspan="8" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                                     Aucun film pour le moment.
                                 </td>
                             </tr>

@@ -46,6 +46,9 @@ class LocalisationController extends Controller
     {
         return view('localisations.show', [
             'localisation' => $localisation,
+            'userHasVoted' => auth()->check()
+                ? LocalisationVote::where(['user_id' => auth()->id(), 'localisation_id' => $localisation->id])->exists()
+                : false,
         ]);
     }
 

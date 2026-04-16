@@ -22,6 +22,8 @@ return new class extends Migration
             $table->string('poster_url');
             $table->string('trailer_url');
             $table->string('actors');
+            $table->unsignedInteger('upvotes_count')->default(0);
+            $table->unsignedInteger('downvotes_count')->default(0);
             $table->timestamps();
         });
     }

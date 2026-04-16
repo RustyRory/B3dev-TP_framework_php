@@ -799,8 +799,83 @@ php artisan migrate
 php artisan queue:listen
 ```
 
-### 8. Vérification jobs
+### 8. Boutons de vote dans les vues
 
+Les controllers passent le vote de l'utilisateur connecté à la vue pour colorier le bouton actif.
+
+`LocalisationController@show` — passer `$userHasVoted` :
+
+```php
+'userHasVoted' => auth()->check()
+    ? LocalisationVote::where(['user_id' => auth()->id(), 'localisation_id' => $localisation->id])->exists()
+    : false,
+```
+
+`FilmController@show` — passer `$userVote` :
+
+```php
+'userVote' => auth()->check()
+    ? FilmVote::where(['user_id' => auth()->id(), 'film_id' => $film->id])->first()
+    : null,
+```
+
+**`localisations/show.blade.php`** — bouton upvote (toggle) :
+
+- Connecté : bouton vert si déjà voté, gris sinon. Cliquer à nouveau annule le vote.
+- Non connecté : compteur affiché en lecture seule + lien vers login.
+
+```blade
+@auth
+    <form action="{{ route('localisations.vote', $localisation) }}" method="POST">
+        @csrf
+        <button type="submit"
+                class="{{ $userHasVoted ? 'bg-green-600 text-white' : 'bg-gray-100 ...' }} ...">
+            👍 {{ $localisation->upvotes_count }}
+        </button>
+    </form>
+@else
+    <span>👍 {{ $localisation->upvotes_count }}</span>
+    <a href="{{ route('login') }}">Connectez-vous</a> pour voter.
+@endauth
+```
+
+**`films/show.blade.php`** — boutons upvote + downvote :
+
+- Connecté : bouton vert si upvote actif, rouge si downvote actif. Cliquer sur le même bouton annule le vote, cliquer sur l'autre change de sens.
+- Non connecté : compteurs en lecture seule + lien vers login.
+- Chaque bouton envoie un champ caché `is_upvote` (valeur `1` ou `0`) en POST sur `films.vote`.
+
+```blade
+@auth
+    {{-- Upvote --}}
+    <form action="{{ route('films.vote', $film) }}" method="POST">
+        @csrf
+        <input type="hidden" name="is_upvote" value="1">
+        <button class="{{ $userVote?->is_upvote === true ? 'bg-green-600 text-white' : '...' }} ...">
+            👍 {{ $film->upvotes_count }}
+        </button>
+    </form>
+    {{-- Downvote --}}
+    <form action="{{ route('films.vote', $film) }}" method="POST">
+        @csrf
+        <input type="hidden" name="is_upvote" value="0">
+        <button class="{{ $userVote?->is_upvote === false ? 'bg-red-600 text-white' : '...' }} ...">
+            👎 {{ $film->downvotes_count }}
+        </button>
+    </form>
+@else
+    <span>👍 {{ $film->upvotes_count }}</span>
+    <span>👎 {{ $film->downvotes_count }}</span>
+    <a href="{{ route('login') }}">Connectez-vous</a> pour voter.
+@endauth
+```
+
+### 9. Vérification
+
+1. Lancer le worker dans un terminal dédié : `php artisan queue:listen`
+2. Se connecter et cliquer sur un bouton de vote
+3. Le terminal doit afficher : `App\Jobs\RecalculateLocalisationVotes` (ou `RecalculateFilmVotes`) avec statut `DONE`
+4. Rafraîchir la page → le compteur est mis à jour et le bouton est colorié
 
 ---
 
