@@ -21,7 +21,6 @@ class LocalisationFactory extends Factory
             'city' => fake()->city(),
             'country' => fake()->country(),
             'description' => fake()->paragraph(),
-            'upvotes_count' => fake()->numberBetween(0, 100),
         ];
     }
 }

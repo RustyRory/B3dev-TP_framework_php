@@ -2,6 +2,8 @@
 
 Application de gestion de lieux de tournage de films, réalisée dans le cadre d'un TP Laravel à MyDigitalSchool.
 
+Énoncé du TP : [tp.md](/docs/tp.md)
+
 ---
 
 ## À propos
@@ -89,6 +91,12 @@ php artisan queue:listen                  # Lancer le worker de queue
 php artisan app:clean-old-locations       # Suppression locations obsolètes (test manuel)
 ./vendor/bin/pint                         # Formater le code
 ```
+
+---
+
+## Workflow complet
+
+Consultez le workflow du tp complet : [workflow.md](/docs/workflow.md)
 
 ---
 
