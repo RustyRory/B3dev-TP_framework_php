@@ -651,7 +651,8 @@ $table->unique(['user_id', 'film_id']); // 1 vote par utilisateur
 Compteurs dénormalisés à remettre dans les migrations existantes (avant `migrate:fresh`) :
 
 - `localisations` → `$table->unsignedInteger('upvotes_count')->default(0);`
-- `films` → `$table->unsignedInteger('upvotes_count')->default(0);` et `$table->unsignedInteger('downvotes_count')->default(0);`
+- `films` → `$table->unsignedInteger('upvotes_count')->default(0);` 
+- `films` → `$table->unsignedInteger('downvotes_count')->default(0);`
 
 ### Ce qu'il faut faire
 
