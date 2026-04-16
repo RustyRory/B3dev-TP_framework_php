@@ -27,6 +27,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/localisations/{localisation}/edit', [LocalisationController::class, 'edit'])->name('localisations.edit');
     Route::put('/localisations/{localisation}', [LocalisationController::class, 'update'])->name('localisations.update');
     Route::delete('/localisations/{localisation}', [LocalisationController::class, 'destroy'])->name('localisations.destroy');
+
+    Route::post('/localisations/{localisation}/vote', [LocalisationController::class, 'vote'])->name('localisations.vote');
+    Route::post('/films/{film}/vote', [FilmController::class, 'vote'])->name('films.vote');
 });
 
 // Dashboard — réservé aux admins

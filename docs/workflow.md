@@ -734,17 +734,6 @@ php artisan migrate
 php artisan queue:listen
 ```
 
-### Checklist
-
-- [ ] Compteurs `upvotes_count` / `downvotes_count` remis dans les migrations existantes
-- [ ] Table `localisation_votes` créée avec contrainte d'unicité
-- [ ] Table `film_votes` créée avec `is_upvote` et contrainte d'unicité
-- [ ] Bouton upvote visible sur la page d'une localisation (toggle)
-- [ ] Boutons upvote/downvote visibles sur la page d'un film (toggle + changement de sens)
-- [ ] Un utilisateur ne peut avoir qu'un seul vote actif par entité
-- [ ] Jobs `RecalculateLocalisationVotes` et `RecalculateFilmVotes` dispatchés après chaque action
-- [ ] Compteurs mis à jour après traitement par le worker
-
 ---
 
 ## Étape 5 — Commande Artisan + tâche planifiée
