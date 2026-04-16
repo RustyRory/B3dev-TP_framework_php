@@ -13,6 +13,17 @@ return new class extends Migration
     {
         Schema::create('films', function (Blueprint $table) {
             $table->id();
+            $table->string('name')->unique();
+            $table->string('producer');
+            $table->unsignedSmallInteger('release_year');
+            $table->unsignedSmallInteger('time');
+            $table->string('genres');
+            $table->text('synopsis');
+            $table->string('poster_url');
+            $table->string('trailer_url');
+            $table->string('actors');
+            $table->unsignedInteger('upvotes')->default(0);
+            $table->unsignedInteger('downvotes')->default(0);
             $table->timestamps();
         });
     }

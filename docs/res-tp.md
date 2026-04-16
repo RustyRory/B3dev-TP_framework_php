@@ -50,7 +50,7 @@ Route::middleware('auth')->group(function () {
 });
 ```
 
-> Si l'utilisateur n'est pas connecté, Laravel le redirige automatiquement vers `/login`.
+> Si l'utilisateur n'est pas connecté, alors qu'il essaye d'accéder au dashboard, Laravel le redirige automatiquement vers `/login`.
 
 4. Créer une page d'accueil `/home` accessible à tous, avec un contenu différent selon l'état de connexion.
 
@@ -69,7 +69,7 @@ Route::get('/home', function () {
 
 #### Vue `resources/views/home.blade.php`
 
-```blade
+```php
 <x-app-layout>
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
@@ -121,9 +121,17 @@ return redirect()->intended(route('home', absolute: false));
 **Film**
 
 ```php
-$table->string('title');
-$table->integer('release_year');
+$table->string('name')->unique();
+$table->string('producer');
+$table->unsignedSmallInteger('release_year');
+$table->unsignedSmallInteger('time');          // durée en minutes
+$table->string('genres');
 $table->text('synopsis');
+$table->string('poster_url');
+$table->string('trailer_url');
+$table->string('actors');
+$table->unsignedInteger('upvotes')->default(0);
+$table->unsignedInteger('downvotes')->default(0);
 ```
 
 **Location**
@@ -145,6 +153,8 @@ Pour chaque modèle, suivre le workflow Laravel :
 ```bash
 php artisan make:migration create_films_table
 php artisan make:model Film
+php artisan make:factory FilmFactory
+php artisan make:seeder FilmSeeder
 php artisan make:controller FilmController
 ```
 
@@ -154,24 +164,99 @@ php artisan make:model Location
 php artisan make:controller LocationController
 ```
 
-Pour chaque contrôleur, implémenter :
+#### Model — points clés
+
+```php
+// app/Models/Film.php
+class Film extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'name', 'producer', 'release_year', 'time',
+        'genres', 'synopsis', 'poster_url', 'trailer_url',
+        'actors', 'upvotes', 'downvotes',
+    ];
+}
+```
+
+> Attention : `#[Fillable([...])]` n'est **pas** une syntaxe PHP valide. Il faut utiliser la propriété `$fillable`.
+
+#### Controller — imports obligatoires
+
+```php
+use App\Models\Film;
+use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+```
+
+#### Routes — ne pas oublier l'import
+
+```php
+// routes/web.php
+use App\Http\Controllers\FilmController;
+```
+
+#### Seeder — appeler depuis DatabaseSeeder
+
+```php
+// database/seeders/DatabaseSeeder.php
+$this->call([
+    FilmSeeder::class,
+]);
+```
+
+#### Pour chaque contrôleur, implémenter :
 
 | Méthode | Route | Description |
 |---|---|---|
 | `index` | GET `/films` | Liste |
 | `create` | GET `/films/create` | Formulaire de création |
 | `store` | POST `/films` | Enregistrement |
-| `edit` | GET `/films/{id}/edit` | Formulaire de modification |
-| `update` | PUT `/films/{id}` | Mise à jour |
-| `destroy` | DELETE `/films/{id}` | Suppression |
+| `show` | GET `/films/{film}` | Détail |
+| `edit` | GET `/films/{film}/edit` | Formulaire de modification |
+| `update` | PUT `/films/{film}` | Mise à jour |
+| `destroy` | DELETE `/films/{film}` | Suppression |
 
-> Pour `Location`, lors de la création, l'utilisateur doit choisir un film dans une liste déroulante et l'emplacement doit être rattaché à l'utilisateur connecté (`auth()->id()`).
+> Pour `Localisation`, lors de la création, l'utilisateur doit choisir un film dans une liste déroulante et l'emplacement doit être rattaché à l'utilisateur connecté (`auth()->id()`).
+
+#### Vues à créer
+
+```
+resources/views/films/
+├── index.blade.php   — liste paginée + bouton suppression
+├── create.blade.php  — formulaire de création
+├── edit.blade.php    — formulaire pré-rempli (old() + valeurs du modèle)
+└── show.blade.php    — détail du film
+```
+
+Toutes les vues étendent `<x-app-layout>` et utilisent les composants Breeze (`<x-input-label>`, `<x-text-input>`, `<x-input-error>`, `<x-primary-button>`).
+
+Pour la suppression, utiliser un formulaire POST avec `@method('DELETE')` et `@csrf` :
+
+```php
+<form action="{{ route('films.destroy', $film) }}" method="POST"
+      onsubmit="return confirm('Supprimer ce film ?')">
+    @csrf
+    @method('DELETE')
+    <button type="submit">Supprimer</button>
+</form>
+```
+
+#### Réinitialiser la BDD avec les seeders
+
+```bash
+php artisan migrate:fresh --seed
+```
 
 ### Checklist
 
-- [ ] Migration `films` lancée
+- [x] Migration `films` lancée (avec toutes les colonnes)
 - [ ] Migration `locations` lancée
-- [ ] CRUD Film complet (liste, création, édition, suppression)
+- [x] CRUD Film complet (liste, création, édition, suppression)
+- [x] Vues Blade films créées (index, create, edit, show)
 - [ ] CRUD Location complet
 - [ ] Création d'un emplacement rattaché à un film et à l'utilisateur connecté
 
