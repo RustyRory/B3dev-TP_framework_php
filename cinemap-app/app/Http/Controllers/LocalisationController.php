@@ -49,7 +49,10 @@ class LocalisationController extends Controller
 
     public function edit(Localisation $localisation): View
     {
-        abort_if(auth()->id() !== $localisation->user_id, 403);
+        abort_if(
+            auth()->id() !== $localisation->user_id && ! auth()->user()->is_admin,
+            403
+        );
 
         return view('localisations.edit', [
             'localisation' => $localisation,
@@ -59,7 +62,10 @@ class LocalisationController extends Controller
 
     public function update(Request $request, Localisation $localisation): RedirectResponse
     {
-        abort_if(auth()->id() !== $localisation->user_id, 403);
+        abort_if(
+            auth()->id() !== $localisation->user_id && ! auth()->user()->is_admin,
+            403
+        );
 
         $localisation->update($this->validatedData($request, $localisation));
 
@@ -70,7 +76,10 @@ class LocalisationController extends Controller
 
     public function destroy(Localisation $localisation): RedirectResponse
     {
-        abort_if(auth()->id() !== $localisation->user_id, 403);
+        abort_if(
+            auth()->id() !== $localisation->user_id && ! auth()->user()->is_admin,
+            403
+        );
 
         $localisation->delete();
 
