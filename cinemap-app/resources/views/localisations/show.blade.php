@@ -71,10 +71,6 @@
                             <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Ajouté par</dt>
                             <dd class="text-gray-900 dark:text-gray-100">{{ $localisation->user->name ?? '—' }}</dd>
                         </div>
-                        <div>
-                            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Votes</dt>
-                            <dd class="text-gray-900 dark:text-gray-100">{{ $localisation->upvotes_count }}</dd>
-                        </div>
                     </dl>
                 </div>
             </div>

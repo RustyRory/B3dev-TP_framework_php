@@ -22,8 +22,6 @@ class FilmFactory extends Factory
             'poster_url'   => fake()->url(),
             'trailer_url'  => fake()->url(),
             'actors'       => implode(', ', fake()->words(fake()->numberBetween(2, 5))),
-            'upvotes'      => fake()->numberBetween(0, 500),
-            'downvotes'    => fake()->numberBetween(0, 100),
         ];
     }
 }

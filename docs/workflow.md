@@ -547,42 +547,177 @@ Le lien "Dashboard" dans la nav ne devrait être visible que pour les admins :
 
 **Objectif :** ajouter un bouton upvote sur les emplacements, traité en arrière-plan.
 
+### Inventaire complet de ce qu'il faut supprimer/modifier
+
+#### Migrations
+`create_films_table.php` 
+
+```php
+$table->unsignedInteger('upvotes')->default(0);
+$table->unsignedInteger('downvotes')->default(0);
+```
+→ Supprimer
+
+`create_localisations_table.php`
+
+```php
+$table->integer('upvotes_count')->default(0);
+```
+→ Supprimer
+
+#### Modèles
+`Film.php`
+
+```php
+'upvotes',
+'downvotes',
+```
+→ Retirer du $fillable.
+
+`Localisation.php`
+
+```php
+'upvotes_count',
+```
+→ Retirer du $fillable.
+
+#### Factories
+`FilmFactory.php`
+
+```php
+'upvotes'   => fake()->numberBetween(0, 500),
+'downvotes' => fake()->numberBetween(0, 100),
+```
+→ Supprimer
+
+`LocalisationFactory.php`
+
+```php
+'upvotes_count' => fake()->numberBetween(0, 100),
+```
+→ Supprimer
+
+#### Vues
+`localisations/index.blade.php`
+
+```php
+<td ...>{{ $localisation->upvotes_count }}</td>
+```
+→ Supprimer la cellule
+
+`localisations/show.blade.php`
+
+```php
+<dd ...>{{ $localisation->upvotes_count }}</dd>
+```
+→ Supprimer le bloc <dt>/<dd> correspondant.
+
+#### migrate:fresh
+
+```php
+php artisan migrate:fresh --seed
+```
+
+Recrée toutes les tables from scratch à partir des fichiers de migration modifiés. Toutes les données sont perdues.
+
 ### Modèle de données
+
+Deux tables de votes distinctes :
 
 ```bash
 php artisan make:migration create_localisation_votes_table
+php artisan make:migration create_film_votes_table
 ```
 
+`localisation_votes` — upvote uniquement :
+
 ```php
-$table->foreignId('user_id')->constrained();
-$table->foreignId('location_id')->constrained();
+$table->foreignId('user_id')->constrained()->cascadeOnDelete();
+$table->foreignId('localisation_id')->constrained()->cascadeOnDelete();
 $table->timestamp('created_at');
-$table->unique(['user_id', 'location_id']); // 1 vote par utilisateur
+$table->unique(['user_id', 'localisation_id']); // 1 vote par utilisateur
 ```
+
+`film_votes` — upvote **et** downvote :
+
+```php
+$table->foreignId('user_id')->constrained()->cascadeOnDelete();
+$table->foreignId('film_id')->constrained()->cascadeOnDelete();
+$table->boolean('is_upvote'); // true = upvote, false = downvote
+$table->timestamp('created_at');
+$table->unique(['user_id', 'film_id']); // 1 vote par utilisateur
+```
+
+Compteurs dénormalisés à remettre dans les migrations existantes (avant `migrate:fresh`) :
+
+- `localisations` → `$table->unsignedInteger('upvotes_count')->default(0);`
+- `films` → `$table->unsignedInteger('upvotes_count')->default(0);` et `$table->unsignedInteger('downvotes_count')->default(0);`
 
 ### Ce qu'il faut faire
 
-1. Créer la table `location_votes`.
-2. Ajouter une route et une action de vote (pas de CRUD complet — juste un bouton POST) :
+1. Remettre les compteurs dans les migrations existantes, créer les deux tables de votes, puis :
+
+```bash
+php artisan migrate:fresh --seed
+```
+
+2. Ajouter les deux routes de vote dans le groupe `middleware('auth')` :
 
 ```php
 // routes/web.php
-Route::post('/locations/{location}/upvote', [LocalisationController::class, 'upvote'])->middleware('auth');
+Route::post('/localisations/{localisation}/vote', [LocalisationController::class, 'vote'])
+    ->name('localisations.vote');
+Route::post('/films/{film}/vote', [FilmController::class, 'vote'])
+    ->name('films.vote');
 ```
 
-3. Dans l'action `upvote`, enregistrer le vote et dispatcher un job :
+3. Créer les deux jobs de recalcul :
 
 ```bash
-php artisan make:job RecalculateUpvotes
+php artisan make:job RecalculateLocalisationVotes
+php artisan make:job RecalculateFilmVotes
 ```
+
+`RecalculateLocalisationVotes` :
 
 ```php
-// Dans le job : recalculer upvotes_count sur l'emplacement
-$location->upvotes_count = LocationVote::where('location_id', $location->id)->count();
-$location->save();
+$localisation->upvotes_count = LocalisationVote::where('localisation_id', $localisation->id)->count();
+$localisation->save();
 ```
 
-4. Configurer la queue dans `.env` :
+`RecalculateFilmVotes` :
+
+```php
+$film->upvotes_count   = FilmVote::where('film_id', $film->id)->where('is_upvote', true)->count();
+$film->downvotes_count = FilmVote::where('film_id', $film->id)->where('is_upvote', false)->count();
+$film->save();
+```
+
+4. Implémenter les actions dans les controllers.
+
+`LocalisationController@vote` — toggle (re-cliquer = annuler le vote) :
+
+```php
+$existing = LocalisationVote::where(['user_id' => auth()->id(), 'localisation_id' => $localisation->id])->first();
+$existing ? $existing->delete() : LocalisationVote::create(['user_id' => auth()->id(), 'localisation_id' => $localisation->id]);
+RecalculateLocalisationVotes::dispatch($localisation);
+```
+
+`FilmController@vote` — toggle ou changement de sens :
+
+```php
+$existing = FilmVote::where(['user_id' => auth()->id(), 'film_id' => $film->id])->first();
+if ($existing) {
+    $existing->is_upvote === $request->boolean('is_upvote')
+        ? $existing->delete()                                        // même vote → annulation
+        : $existing->update(['is_upvote' => $request->boolean('is_upvote')]); // vote opposé → changement
+} else {
+    FilmVote::create(['user_id' => auth()->id(), 'film_id' => $film->id, 'is_upvote' => $request->boolean('is_upvote')]);
+}
+RecalculateFilmVotes::dispatch($film);
+```
+
+5. Configurer la queue dans `.env` :
 
 ```env
 QUEUE_CONNECTION=database
@@ -593,15 +728,22 @@ php artisan queue:table
 php artisan migrate
 ```
 
-5. Vérifier que le job passe bien par le worker (`php artisan queue:listen`).
+6. Vérifier que les jobs passent bien par le worker :
+
+```bash
+php artisan queue:listen
+```
 
 ### Checklist
 
-- [ ] Table `location_votes` créée avec contrainte d'unicité
-- [ ] Bouton upvote visible sur la page d'un emplacement
-- [ ] Un utilisateur ne peut voter qu'une seule fois
-- [ ] Job `RecalculateUpvotes` dispatché après le vote
-- [ ] `upvotes_count` mis à jour après traitement par le worker
+- [ ] Compteurs `upvotes_count` / `downvotes_count` remis dans les migrations existantes
+- [ ] Table `localisation_votes` créée avec contrainte d'unicité
+- [ ] Table `film_votes` créée avec `is_upvote` et contrainte d'unicité
+- [ ] Bouton upvote visible sur la page d'une localisation (toggle)
+- [ ] Boutons upvote/downvote visibles sur la page d'un film (toggle + changement de sens)
+- [ ] Un utilisateur ne peut avoir qu'un seul vote actif par entité
+- [ ] Jobs `RecalculateLocalisationVotes` et `RecalculateFilmVotes` dispatchés après chaque action
+- [ ] Compteurs mis à jour après traitement par le worker
 
 ---
 
