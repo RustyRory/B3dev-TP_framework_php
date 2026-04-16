@@ -12,6 +12,18 @@
                     {{ __("You're logged in!") }}
                 </div>
             </div>
+            <div class="page">
+                <section class="panel stack-sm">
+                    <div>
+                        <h3 class="section-title">Administration du site</h3>
+                        <p class="section-text">Accedez a la gestion des films et des localisations depuis cette page.</p>
+                    </div>
+
+                    <div class="action-group">
+                        <a class="button" href="{{ route('films.index') }}">Gerer les films</a>
+                    </div>
+                </section>
+            </div>
         </div>
     </div>
 </x-app-layout>
