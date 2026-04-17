@@ -1168,15 +1168,15 @@ Route::get('/auth/discord/callback', [SocialiteController::class, 'handleDiscord
 ### Route attendue
 
 ```
-GET /api/films/{film}/locations
-Authorization: Bearer <token_jwt>
+POST /api/auth/login       → retourne un token JWT
+GET  /api/films/{film}/locations   Authorization: Bearer <token>
 ```
 
-### Ce qu'il faut faire
+---
 
-#### Stripe
+### Partie A — Stripe (abonnement)
 
-1. Installer Cashier :
+#### 1. Installer Cashier
 
 ```bash
 composer require laravel/cashier
@@ -1184,53 +1184,48 @@ php artisan vendor:publish --tag="cashier-migrations"
 php artisan migrate
 ```
 
-Cela crée les tables `subscriptions`, `subscription_items` et ajoute des colonnes sur `users`.
+> Si `vendor:publish` est lancé deux fois, des migrations en double apparaissent. Supprimer manuellement les fichiers en double dans `database/migrations/` puis relancer `php artisan migrate:fresh --seed`.
 
-2. Créer un compte Stripe et récupérer les clés
+> Si l'extension PHP `bcmath` est manquante : `sudo apt install php8.3-bcmath`
 
-- Aller sur https://dashboard.stripe.com → crée un compte
-- Dans le menu gauche Developers → API keys
-- Copier Publishable key et Secret key (mode test)
+#### 2. Créer un compte Stripe et récupérer les clés
 
-Dans .env :
+- Aller sur https://dashboard.stripe.com → créer un compte
+- Menu gauche **Developers → API keys** → copier **Publishable key** et **Secret key** (mode test)
+
 ```env
 STRIPE_KEY=pk_test_...
 STRIPE_SECRET=sk_test_...
 ```
 
-3. Ajouter le trait `Billable` au modèle `User`.
+#### 3. Ajouter le trait `Billable` au modèle `User`
 
 ```php
-// app/Models/User.php — ajouter l'import et le trait
 use Laravel\Cashier\Billable;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, Billable;
-
+    use Billable, HasFactory, Notifiable;
+}
 ```
 
-4. Créer un produit/prix dans Stripe
+#### 4. Créer un produit dans Stripe
 
-- Dans le dashboard Stripe → Products → Add product
-- Nom : `Abonnement CineMap`, prix : ex. `5.00 € / mois`, type Recurring
-- Après création, copier le Price ID (commence par price_...)
+- Dashboard Stripe → **Products → Add product**
+- Nom : `Abonnement CineMap`, prix : `5.00 €/mois`, type **Recurring**
+- Après création, copier le **Price ID** (`price_...`)
 
-Dans .env :
 ```env
 STRIPE_PRICE_ID=price_...
 ```
 
-5. Créer une page de souscription simple avec un formulaire Stripe.
-
-Il faut 3 choses : une route, un controller, une vue.
+#### 5. Créer le `SubscriptionController`
 
 ```bash
 php artisan make:controller SubscriptionController
 ```
 
 ```php
-// SubscriptionController
 use Illuminate\Http\Request;
 
 public function index()
@@ -1245,11 +1240,8 @@ public function store(Request $request)
     $request->validate(['payment_method' => 'required']);
 
     $user = auth()->user();
-
     $user->createOrGetStripeCustomer();
-
     $user->addPaymentMethod($request->payment_method);
-
     $user->newSubscription('default', env('STRIPE_PRICE_ID'))
         ->create($request->payment_method);
 
@@ -1257,66 +1249,22 @@ public function store(Request $request)
 }
 ```
 
-Route dans web.php (dans le groupe middleware('auth')) :
+Routes dans `web.php` (groupe `middleware('auth')`) :
 
 ```php
 Route::get('/subscription', [SubscriptionController::class, 'index'])->name('subscription.index');
 Route::post('/subscription', [SubscriptionController::class, 'store'])->name('subscription.store');
 ```
 
-Vue resources/views/subscription/index.blade.php avec le formulaire Stripe.js :
+#### 6. Tester
 
-```php
-<x-app-layout>
-    <x-slot name="header">Abonnement</x-slot>
+Carte de test Stripe : `4242 4242 4242 4242` — date future, CVC quelconque.
 
-    <div class="py-12 max-w-xl mx-auto">
-        <form id="payment-form" action="{{ route('subscription.store') }}" method="POST">
-            @csrf
-            <input type="hidden" name="payment_method" id="payment_method">
+---
 
-            <div id="card-element" class="p-3 border rounded mb-4"></div>
-            <p id="card-errors" class="text-red-500 text-sm mb-4"></p>
+### Partie B — JWT (API protégée)
 
-            <button type="submit"
-                class="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded hover:bg-blue-700">
-                S'abonner — 5 €/mois
-            </button>
-        </form>
-    </div>
-
-    <script src="https://js.stripe.com/v3/"></script>
-    <script>
-        const stripe = Stripe('{{ config('cashier.key') }}');
-        const elements = stripe.elements();
-        const cardElement = elements.create('card');
-        cardElement.mount('#card-element');
-
-        const form = document.getElementById('payment-form');
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const { setupIntent, error } = await stripe.confirmCardSetup(
-                '{{ $intent->client_secret }}',
-                { payment_method: { card: cardElement } }
-            );
-            if (error) {
-                document.getElementById('card-errors').textContent = error.message;
-            } else {
-                document.getElementById('payment_method').value = setupIntent.payment_method;
-                form.submit();
-            }
-        });
-    </script>
-</x-app-layout>
-```
-
-6. Tester
-
-Carte de test Stripe : `4242 4242 4242 4242` — date future, CVC n'importe lequel.
-
-#### JWT
-
-1. Installer `php-open-source-saver/jwt-auth` :
+#### 1. Installer jwt-auth
 
 ```bash
 composer require php-open-source-saver/jwt-auth
@@ -1324,23 +1272,129 @@ php artisan vendor:publish --provider="PHPOpenSourceSaver\JWTAuth\Providers\Lara
 php artisan jwt:secret
 ```
 
-2. Ajouter dans `.env` :
+Le secret est ajouté automatiquement dans `.env` sous `JWT_SECRET`.
 
-```env
-JWT_SECRET=<valeur générée>
-```
-
-3. Créer les routes d'auth API :
+#### 2. Configurer le guard `api` dans `config/auth.php`
 
 ```php
-// routes/api.php
+'guards' => [
+    'web' => ['driver' => 'session', 'provider' => 'users'],
+    'api' => ['driver' => 'jwt',     'provider' => 'users'],
+],
+```
+
+#### 3. Implémenter `JWTSubject` sur le modèle `User`
+
+```php
+use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
+
+class User extends Authenticatable implements JWTSubject
+{
+    public function getJWTIdentifier(): mixed
+    {
+        return $this->getKey();
+    }
+
+    public function getJWTCustomClaims(): array
+    {
+        return [];
+    }
+}
+```
+
+#### 4. Créer les controllers API
+
+```bash
+php artisan make:controller ApiAuthController
+php artisan make:controller FilmApiController
+```
+
+**`ApiAuthController`** — vérifie les credentials ET l'abonnement avant de délivrer le token :
+
+```php
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
+public function login(Request $request)
+{
+    $credentials = $request->validate([
+        'email'    => 'required|email',
+        'password' => 'required',
+    ]);
+
+    if (! $token = Auth::guard('api')->attempt($credentials)) {
+        return response()->json(['error' => 'Identifiants invalides'], 401);
+    }
+
+    $user = Auth::guard('api')->user();
+
+    if (! $user->subscribed('default')) {
+        Auth::guard('api')->logout();
+        return response()->json(['error' => 'Abonnement requis'], 403);
+    }
+
+    return response()->json(['token' => $token]);
+}
+```
+
+**`FilmApiController`** — retourne le film et ses localisations en JSON :
+
+```php
+use App\Models\Film;
+
+public function locations(Film $film)
+{
+    return response()->json([
+        'film'          => $film->only(['id', 'name', 'producer', 'release_year', 'synopsis']),
+        'localisations' => $film->localisations()->get([
+            'id', 'name', 'city', 'country', 'description', 'upvotes_count',
+        ]),
+    ]);
+}
+```
+
+#### 5. Enregistrer `routes/api.php` dans `bootstrap/app.php`
+
+> **Laravel 11+ ne charge pas `routes/api.php` automatiquement.** Sans cette étape, toutes les routes API retournent 404.
+
+```php
+// bootstrap/app.php
+return Application::configure(basePath: dirname(__DIR__))
+    ->withRouting(
+        web:      __DIR__.'/../routes/web.php',
+        api:      __DIR__.'/../routes/api.php',   // ← obligatoire
+        commands: __DIR__.'/../routes/console.php',
+        health:   '/up',
+    )
+    // ...
+```
+
+#### 6. Déclarer les routes dans `routes/api.php`
+
+```php
+use App\Http\Controllers\ApiAuthController;
+use App\Http\Controllers\FilmApiController;
+
 Route::post('/auth/login', [ApiAuthController::class, 'login']);
-Route::middleware(['auth:api', 'subscribed'])->group(function () {
+
+Route::middleware('auth:api')->group(function () {
     Route::get('/films/{film}/locations', [FilmApiController::class, 'locations']);
 });
 ```
 
-4. La réponse JSON doit contenir : infos du film + liste des emplacements + `upvotes_count`.
+> Ne pas ajouter de middleware `subscribed` — il n'existe pas. La vérification de l'abonnement est faite dans `ApiAuthController@login` avant de délivrer le token.
+
+#### 7. Tester avec curl
+
+```bash
+curl -s -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"ton@email.com","password":"motdepasse"}' | jq .
+
+# Puis avec le token :
+curl -s http://localhost:8000/api/films/1/locations \
+  -H "Authorization: Bearer <token>" | jq .
+```
 
 ---
 
