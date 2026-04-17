@@ -1053,7 +1053,18 @@ $table->string('oauth_id')->nullable()->unique();
 ],
 ```
 
-4. Ajouter les variables dans `.env` :
+4. Créer l'application Discord :
+
+- Sur https://discord.com/developers/applications
+- Cliquer sur `New Application` → nom : `CineMap`
+- Dans le menu gauche, aller dans OAuth2
+  - `Client ID` → copier cette valeur dans `DISCORD_CLIENT_ID`
+  - `Client Secret` → cliquer sur `Reset Secret` → copier dans `DISCORD_CLIENT_SECRET`
+- Dans la section "Redirects", cliquer sur `Add Redirect` et ajouter :
+  - `http://localhost:8000/auth/discord/callback`
+  - Puis Save Changes.
+
+5. Ajouter les variables dans `.env` :
 
 ```
 DISCORD_CLIENT_ID=
@@ -1111,16 +1122,6 @@ Route::get('/auth/discord/callback', [SocialiteController::class, 'handleDiscord
     Se connecter avec Discord
 </a>
 ```
-
-### Checklist
-
-- [ ] Package Socialite installé
-- [ ] Migration `oauth_id` (nullable, unique) sur `users` créée et jouée
-- [ ] Variables `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI` dans `.env`
-- [ ] `SocialiteController` créé avec `redirectToDiscord` et `handleDiscordCallback`
-- [ ] Routes `/auth/discord` et `/auth/discord/callback` ajoutées dans `web.php`
-- [ ] Bouton Discord visible sur la page de login
-- [ ] Connexion OAuth crée ou retrouve l'utilisateur en base via `oauth_id`
 
 ---
 
@@ -1221,14 +1222,11 @@ Route::middleware(['auth:api', 'subscribed'])->group(function () {
 
 ---
 
-## Avant le rendu — checklist finale
+## En plus
 
-- [ ] `./vendor/bin/pint` lancé sur tout le code
-- [ ] Toutes les migrations sont propres (`php artisan migrate:fresh` sans erreur)
-- [ ] Le worker de queue fonctionne
-- [ ] La commande planifiée est testable manuellement
-- [ ] L'auth OAuth fonctionne
-- [ ] Stripe fonctionne en mode test
-- [ ] L'API répond correctement avec un JWT valide + abonnement
-- [ ] Le serveur MCP fonctionne
-- [ ] Le README explique clairement comment lancer chaque partie
+- Tests
+- github actions
+   - Deploiement auto env test
+   - cicd
+
+
