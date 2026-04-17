@@ -27,6 +27,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.0] - 17/04/2026
+
+### Ajouté
+
+- Packages `laravel/socialite` et `socialiteproviders/discord` installés
+- Colonne `oauth_id` (nullable, unique) sur la table `users` — stocke l'identifiant Discord pour retrouver l'utilisateur au second login
+- `oauth_id` ajouté dans `#[Fillable]` du modèle `User`
+- Provider Discord enregistré dans `AppServiceProvider` via l'événement `SocialiteWasCalled`
+- Entrée `discord` dans `config/services.php` avec les variables `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI`
+- `SocialiteController` avec `redirectToDiscord` et `handleDiscordCallback` (`->stateless()`)
+- Logique de liaison de compte : si un utilisateur avec le même email existe déjà, son `oauth_id` est mis à jour — sinon un nouveau compte est créé
+- Routes `/auth/discord` et `/auth/discord/callback` hors middleware dans `web.php`
+- Bouton "Se connecter avec Discord" sur la page de login avec logo SVG Discord et séparateur "ou"
+
+### Corrigé
+
+- `InvalidStateException` Socialite : ajout de `->stateless()` sur le redirect et le callback
+- `UniqueConstraintViolationException` sur `users.email` : remplacement de `firstOrCreate(['oauth_id'])` par une recherche `orWhere('email')` pour gérer les comptes existants
+
+---
+
 ## [0.6.0] - 17/04/2026
 
 ### Ajouté

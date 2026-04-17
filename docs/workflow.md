@@ -1023,43 +1023,141 @@ git add -u
 
 ## Étape 7 — Connexion OAuth
 
-**Objectif :** ajouter un bouton "Se connecter avec GitHub" (ou autre) sur la page de login.
+**Objectif :** ajouter un bouton "Se connecter avec Discord" sur la page de login.
 
 ### Ce qu'il faut faire
 
-1. Installer Socialite :
+1. Installer Socialite + le provider Discord communautaire :
 
 ```bash
 composer require laravel/socialite
+composer require socialiteproviders/discord
 ```
 
-2. Configurer le fournisseur dans `config/services.php` :
+> Discord n'est pas un driver natif de Socialite — le package `socialiteproviders/discord` est obligatoire.
+
+2. Enregistrer le provider Discord dans `app/Providers/AppServiceProvider.php` :
 
 ```php
-'github' => [
-    'client_id'     => env('GITHUB_CLIENT_ID'),
-    'client_secret' => env('GITHUB_CLIENT_SECRET'),
-    'redirect'      => env('GITHUB_REDIRECT_URI'),
+use SocialiteProviders\Manager\SocialiteWasCalled;
+
+public function boot(): void
+{
+    \Event::listen(SocialiteWasCalled::class, \SocialiteProviders\Discord\DiscordExtendSocialite::class);
+}
+```
+
+3. Ajouter la colonne `oauth_id` sur la table `users` :
+
+```bash
+php artisan make:migration add_oauth_id_to_users_table --table=users
+php artisan migrate
+```
+
+```php
+// up()
+$table->string('oauth_id')->nullable()->unique();
+
+// down()
+$table->dropColumn('oauth_id');
+```
+
+Ajouter `oauth_id` dans le `#[Fillable]` du modèle `User` :
+
+```php
+#[Fillable(['name', 'email', 'password', 'is_admin', 'oauth_id'])]
+```
+
+4. Configurer le fournisseur dans `config/services.php` :
+
+```php
+'discord' => [
+    'client_id'     => env('DISCORD_CLIENT_ID'),
+    'client_secret' => env('DISCORD_CLIENT_SECRET'),
+    'redirect'      => env('DISCORD_REDIRECT_URI'),
 ],
 ```
 
-3. Ajouter les routes OAuth :
+5. Créer l'application Discord et renseigner le `.env` :
 
-```php
-Route::get('/auth/github', [AuthController::class, 'redirectToGithub']);
-Route::get('/auth/github/callback', [AuthController::class, 'handleGithubCallback']);
+- Sur https://discord.com/developers/applications → **New Application** → nom : `CineMap`
+- Menu gauche **OAuth2** → copier `Client ID` et `Client Secret`
+- Section **Redirects** → ajouter `http://localhost:8000/auth/discord/callback` → Save Changes
+
+```
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+DISCORD_REDIRECT_URI=http://localhost:8000/auth/discord/callback
 ```
 
-4. Dans le callback, créer ou connecter l'utilisateur via `User::firstOrCreate()`.
+6. Créer `SocialiteController` :
 
-5. Ajouter le bouton sur la vue login.
+```bash
+php artisan make:controller SocialiteController
+```
 
-### Checklist
+```php
+use App\Models\User;
+use Illuminate\Support\Facades\Auth;
+use Laravel\Socialite\Facades\Socialite;
 
-- [ ] Package Socialite installé
-- [ ] Variables `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_REDIRECT_URI` dans `.env`
-- [ ] Bouton OAuth visible sur la page de login
-- [ ] Connexion OAuth crée ou retrouve l'utilisateur en base
+public function redirectToDiscord()
+{
+    return Socialite::driver('discord')->stateless()->redirect();
+}
+
+public function handleDiscordCallback()
+{
+    $discordUser = Socialite::driver('discord')->stateless()->user();
+
+    $user = User::where('oauth_id', $discordUser->getId())
+        ->orWhere('email', $discordUser->getEmail())
+        ->first();
+
+    if ($user) {
+        $user->update(['oauth_id' => $discordUser->getId()]);
+    } else {
+        $user = User::create([
+            'oauth_id' => $discordUser->getId(),
+            'name'     => $discordUser->getName(),
+            'email'    => $discordUser->getEmail(),
+            'password' => bcrypt(str()->random(32)),
+        ]);
+    }
+
+    Auth::login($user);
+
+    return redirect('/home');
+}
+```
+
+> `->stateless()` est nécessaire pour éviter l'`InvalidStateException` en développement local.
+>
+> La logique `orWhere('email')` permet de lier un compte existant (créé par formulaire) à Discord sans doublon.
+
+7. Ajouter les routes dans `routes/web.php` (hors tout middleware) :
+
+```php
+Route::get('/auth/discord', [SocialiteController::class, 'redirectToDiscord']);
+Route::get('/auth/discord/callback', [SocialiteController::class, 'handleDiscordCallback']);
+```
+
+8. Ajouter le bouton sur la vue login (`resources/views/auth/login.blade.php`), séparé du formulaire par un séparateur "ou" :
+
+```html
+<div class="mt-6 flex items-center gap-3">
+    <div class="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
+    <span class="text-sm text-gray-500 dark:text-gray-400">ou</span>
+    <div class="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
+</div>
+
+<div class="mt-4">
+    <a href="/auth/discord"
+       class="flex items-center justify-center gap-3 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md transition">
+        Se connecter avec Discord
+    </a>
+</div>
+```
 
 ---
 
@@ -1160,14 +1258,11 @@ Route::middleware(['auth:api', 'subscribed'])->group(function () {
 
 ---
 
-## Avant le rendu — checklist finale
+## En plus
 
-- [ ] `./vendor/bin/pint` lancé sur tout le code
-- [ ] Toutes les migrations sont propres (`php artisan migrate:fresh` sans erreur)
-- [ ] Le worker de queue fonctionne
-- [ ] La commande planifiée est testable manuellement
-- [ ] L'auth OAuth fonctionne
-- [ ] Stripe fonctionne en mode test
-- [ ] L'API répond correctement avec un JWT valide + abonnement
-- [ ] Le serveur MCP fonctionne
-- [ ] Le README explique clairement comment lancer chaque partie
+- Tests
+- github actions
+   - Deploiement auto env test
+   - cicd
+
+
