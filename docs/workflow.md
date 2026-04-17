@@ -964,7 +964,7 @@ Localisation::where('created_at', '<', now()->subDays(14))
 2. Enregistrer dans le scheduler (`routes/console.php`) :
 
 ```php
-Schedule::command('app:clean-old-locations')->daily();
+Schedule::command('app:clean-old-localisations')->daily();
 ```
 
 3. Tester manuellement :

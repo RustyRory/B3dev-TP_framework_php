@@ -7,9 +7,9 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use App\Models\Localisation;
 
-#[Signature('app:clean-old-locations')]
+#[Signature('app:clean-old-localisations')]
 #[Description('Supprime les localisations créées depuis plus de 14 jours avec moins de 2 upvotes')]
-class CleanOldLocations extends Command
+class CleanOldLocalisations extends Command
 {
     /**
      * Execute the console command.
