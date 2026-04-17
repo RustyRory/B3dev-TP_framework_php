@@ -15,7 +15,7 @@ class RecalculateFilmVotes implements ShouldQueue
 
     public function handle(): void
     {
-        $this->film->upvotes_count   = FilmVote::where('film_id', $this->film->id)->where('is_upvote', true)->count();
+        $this->film->upvotes_count = FilmVote::where('film_id', $this->film->id)->where('is_upvote', true)->count();
         $this->film->downvotes_count = FilmVote::where('film_id', $this->film->id)->where('is_upvote', false)->count();
         $this->film->save();
     }

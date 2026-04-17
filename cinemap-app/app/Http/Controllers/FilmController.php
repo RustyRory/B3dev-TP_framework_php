@@ -48,8 +48,8 @@ class FilmController extends Controller
             : collect();
 
         return view('films.show', [
-            'film'              => $film,
-            'userVote'          => auth()->check()
+            'film' => $film,
+            'userVote' => auth()->check()
                 ? FilmVote::where(['user_id' => auth()->id(), 'film_id' => $film->id])->first()
                 : null,
             'localisationVotes' => $localisationVotes,
@@ -94,8 +94,8 @@ class FilmController extends Controller
                 : $existing->update(['is_upvote' => $request->boolean('is_upvote')]);
         } else {
             FilmVote::create([
-                'user_id'   => auth()->id(),
-                'film_id'   => $film->id,
+                'user_id' => auth()->id(),
+                'film_id' => $film->id,
                 'is_upvote' => $request->boolean('is_upvote'),
             ]);
         }
@@ -107,18 +107,18 @@ class FilmController extends Controller
 
     protected function validatedData(Request $request, ?Film $film = null): array
     {
-        $film ??= new Film();
+        $film ??= new Film;
 
         return $request->validate([
-            'name'         => ['required', 'string', 'max:255', Rule::unique('films')->ignore($film)],
-            'producer'     => ['required', 'string', 'max:255'],
-            'release_year' => ['required', 'integer', 'min:1888', 'max:' . date('Y')],
-            'time'         => ['required', 'integer', 'min:1'],
-            'genres'       => ['required', 'string', 'max:255'],
-            'synopsis'     => ['required', 'string'],
-            'poster_url'   => ['required', 'url'],
-            'trailer_url'  => ['required', 'url'],
-            'actors'       => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:255', Rule::unique('films')->ignore($film)],
+            'producer' => ['required', 'string', 'max:255'],
+            'release_year' => ['required', 'integer', 'min:1888', 'max:'.date('Y')],
+            'time' => ['required', 'integer', 'min:1'],
+            'genres' => ['required', 'string', 'max:255'],
+            'synopsis' => ['required', 'string'],
+            'poster_url' => ['required', 'url'],
+            'trailer_url' => ['required', 'url'],
+            'actors' => ['required', 'string', 'max:255'],
         ]);
     }
 }

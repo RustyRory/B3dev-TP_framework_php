@@ -27,6 +27,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.0] - 17/04/2026
+
+### Ajouté
+
+- Hook git `pre-commit` : exécute `./vendor/bin/pint` puis `git add -u` automatiquement avant chaque commit
+- Section « Qualité du code » dans `README.md` : instructions pour lancer Pint manuellement et créer le hook pre-commit après un clone
+
+### Corrigé
+
+- Nom de commande erroné `app:clean-old-locations` → `app:clean-old-localisations` dans la section « Commandes utiles » du `README.md`
+
+---
+
 ## [0.5.0] - 17/04/2026
 
 ### Ajouté
@@ -36,7 +49,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Corrigé
 
-- Nom de modèle erroné `Location` → `Localisation` dans la commande
 - Import incorrect `Illuminate\Console\Scheduling\Schedule` (classe concrète) → `Illuminate\Support\Facades\Schedule` (facade) dans `routes/console.php`
 - Signature de commande `app:clean-old-locations` → `app:clean-old-localisations` pour correspondre à l'appel du scheduler
 
