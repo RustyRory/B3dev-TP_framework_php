@@ -4,6 +4,7 @@ use App\Http\Controllers\FilmController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LocalisationController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SocialiteController;
 use App\Models\Film;
 use App\Models\Localisation;
 use Illuminate\Support\Facades\Route;
@@ -58,5 +59,9 @@ Route::middleware(['auth', 'admin'])->group(function () {
 // pour que /films/create et /localisations/create soient capturés en premier
 Route::get('/films/{film}', [FilmController::class, 'show'])->name('films.show');
 Route::get('/localisations/{localisation}', [LocalisationController::class, 'show'])->name('localisations.show');
+
+// Routes d'authentification via Discord
+Route::get('/auth/discord', [SocialiteController::class, 'redirectToDiscord']);
+Route::get('/auth/discord/callback', [SocialiteController::class, 'handleDiscordCallback']);
 
 require __DIR__.'/auth.php';
