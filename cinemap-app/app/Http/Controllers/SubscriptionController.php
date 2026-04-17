@@ -10,21 +10,27 @@ class SubscriptionController extends Controller
 
     public function index()
     {
+        $user = auth()->user();
+
         return view('subscription.index', [
-            'intent' => auth()->user()->createSetupIntent(),
+            'intent' => $user->subscribed('default') ? null : $user->createSetupIntent(),
+            'subscribed' => $user->subscribed('default'),
         ]);
     }
 
     public function store(Request $request)
     {
-        $request->validate(['payment_method' => 'required']);
-
         $user = auth()->user();
 
+        if ($user->subscribed('default')) {
+            return redirect()->route('subscription.index')
+                ->with('error', 'Vous êtes déjà abonné.');
+        }
+
+        $request->validate(['payment_method' => 'required']);
+
         $user->createOrGetStripeCustomer();
-
         $user->addPaymentMethod($request->payment_method);
-
         $user->newSubscription('default', env('STRIPE_PRICE_ID'))
             ->create($request->payment_method);
 
