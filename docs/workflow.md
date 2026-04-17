@@ -1316,7 +1316,7 @@ Carte de test Stripe : `4242 4242 4242 4242` — date future, CVC n'importe lequ
 
 #### JWT
 
-1. Installer `php-open-source-saver/jwt-auth` (compatible Laravel 11) :
+1. Installer `php-open-source-saver/jwt-auth` :
 
 ```bash
 composer require php-open-source-saver/jwt-auth
