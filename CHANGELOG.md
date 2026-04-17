@@ -27,6 +27,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] - 17/04/2026
+
+### Ajouté
+
+- Commande Artisan `app:clean-old-localisations` (classe `CleanOldLocalisations`) : supprime les localisations créées depuis plus de 14 jours ayant moins de 2 upvotes, affiche le nombre de lignes supprimées via `$this->info()`
+- Entrée dans le scheduler (`routes/console.php`) : `Schedule::command('app:clean-old-localisations')->daily()` — exécution automatique chaque nuit
+
+### Corrigé
+
+- Nom de modèle erroné `Location` → `Localisation` dans la commande
+- Import incorrect `Illuminate\Console\Scheduling\Schedule` (classe concrète) → `Illuminate\Support\Facades\Schedule` (facade) dans `routes/console.php`
+- Signature de commande `app:clean-old-locations` → `app:clean-old-localisations` pour correspondre à l'appel du scheduler
+
+---
+
 ## [0.4.0] - 16/04/2026
 
 ### Ajouté

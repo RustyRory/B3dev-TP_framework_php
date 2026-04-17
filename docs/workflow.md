@@ -824,7 +824,7 @@ Les controllers passent le vote de l'utilisateur connecté à la vue pour colori
 - Connecté : bouton vert si déjà voté, gris sinon. Cliquer à nouveau annule le vote.
 - Non connecté : compteur affiché en lecture seule + lien vers login.
 
-```blade
+```php
 @auth
     <form action="{{ route('localisations.vote', $localisation) }}" method="POST">
         @csrf
@@ -845,7 +845,7 @@ Les controllers passent le vote de l'utilisateur connecté à la vue pour colori
 - Non connecté : compteurs en lecture seule + lien vers login.
 - Chaque bouton envoie un champ caché `is_upvote` (valeur `1` ou `0`) en POST sur `films.vote`.
 
-```blade
+```php
 @auth
     {{-- Upvote --}}
     <form action="{{ route('films.vote', $film) }}" method="POST">
@@ -972,12 +972,6 @@ Schedule::command('app:clean-old-localisations')->daily();
 ```bash
 php artisan app:clean-old-localisations
 ```
-
-### Checklist
-
-- [ ] Commande créée avec la bonne règle métier (14 jours / < 2 upvotes)
-- [ ] Commande enregistrée dans le scheduler (quotidienne)
-- [ ] Test manuel fonctionnel
 
 ---
 
