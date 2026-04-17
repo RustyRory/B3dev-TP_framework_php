@@ -824,17 +824,17 @@ Les controllers passent le vote de l'utilisateur connecté à la vue pour colori
 - Connecté : bouton vert si déjà voté, gris sinon. Cliquer à nouveau annule le vote.
 - Non connecté : compteur affiché en lecture seule + lien vers login.
 
-```blade
+```php
 @auth
     <form action="{{ route('localisations.vote', $localisation) }}" method="POST">
         @csrf
         <button type="submit"
                 class="{{ $userHasVoted ? 'bg-green-600 text-white' : 'bg-gray-100 ...' }} ...">
-            👍 {{ $localisation->upvotes_count }}
+            +{{ $localisation->upvotes_count }}
         </button>
     </form>
 @else
-    <span>👍 {{ $localisation->upvotes_count }}</span>
+    <span>+{{ $localisation->upvotes_count }}</span>
     <a href="{{ route('login') }}">Connectez-vous</a> pour voter.
 @endauth
 ```
@@ -845,14 +845,14 @@ Les controllers passent le vote de l'utilisateur connecté à la vue pour colori
 - Non connecté : compteurs en lecture seule + lien vers login.
 - Chaque bouton envoie un champ caché `is_upvote` (valeur `1` ou `0`) en POST sur `films.vote`.
 
-```blade
+```php
 @auth
     {{-- Upvote --}}
     <form action="{{ route('films.vote', $film) }}" method="POST">
         @csrf
         <input type="hidden" name="is_upvote" value="1">
         <button class="{{ $userVote?->is_upvote === true ? 'bg-green-600 text-white' : '...' }} ...">
-            👍 {{ $film->upvotes_count }}
+            +{{ $film->upvotes_count }}
         </button>
     </form>
     {{-- Downvote --}}
@@ -860,22 +860,80 @@ Les controllers passent le vote de l'utilisateur connecté à la vue pour colori
         @csrf
         <input type="hidden" name="is_upvote" value="0">
         <button class="{{ $userVote?->is_upvote === false ? 'bg-red-600 text-white' : '...' }} ...">
-            👎 {{ $film->downvotes_count }}
+            -{{ $film->downvotes_count }}
         </button>
     </form>
 @else
-    <span>👍 {{ $film->upvotes_count }}</span>
-    <span>👎 {{ $film->downvotes_count }}</span>
+    <span>+{{ $film->upvotes_count }}</span>
+    <span>-{{ $film->downvotes_count }}</span>
     <a href="{{ route('login') }}">Connectez-vous</a> pour voter.
 @endauth
 ```
 
-### 9. Vérification
+**`home.blade.php`** — votes film affichés à côté du titre (boutons `+N` / `-N` fusionnés en pill), upvote localisation en bout de card.
+
+**Données à passer depuis les controllers :**
+
+`LocalisationController@show` :
+```php
+'userHasVoted' => auth()->check()
+    ? LocalisationVote::where(['user_id' => auth()->id(), 'localisation_id' => $localisation->id])->exists()
+    : false,
+```
+
+`FilmController@show` — passer aussi les votes de localisations pour la liste :
+```php
+'userVote'          => auth()->check() ? FilmVote::where([...])->first() : null,
+'localisationVotes' => auth()->check()
+    ? LocalisationVote::where('user_id', auth()->id())
+        ->whereIn('localisation_id', $film->localisations->pluck('id'))
+        ->get()->keyBy('localisation_id')
+    : collect(),
+```
+
+`HomeController@index` — une requête par type de vote, sans N+1 :
+```php
+$filmVotes = FilmVote::where('user_id', auth()->id())
+    ->whereIn('film_id', $films->pluck('id'))->get()->keyBy('film_id');
+
+$localisationVotes = LocalisationVote::where('user_id', auth()->id())
+    ->whereIn('localisation_id', $localisationIds)->get()->keyBy('localisation_id');
+```
+
+### 9. Dashboard et tables admin
+
+La route `/dashboard` passe des statistiques agrégées à la vue :
+
+```php
+Route::get('/dashboard', function () {
+    return view('dashboard', [
+        'totalFilms'         => Film::count(),
+        'totalLocalisations' => Localisation::count(),
+        'totalFilmUpvotes'   => Film::sum('upvotes_count'),
+        'totalFilmDownvotes' => Film::sum('downvotes_count'),
+        'totalLocVotes'      => Localisation::sum('upvotes_count'),
+        'topFilms'           => Film::orderByDesc('upvotes_count')->take(5)->get([...]),
+        'topLocalisations'   => Localisation::with('film')->orderByDesc('upvotes_count')->take(5)->get([...]),
+    ]);
+})->middleware(['auth', 'admin'])->name('dashboard');
+```
+
+`dashboard.blade.php` affiche :
+- 5 compteurs globaux (films, localisations, upvotes films, downvotes films, upvotes localisations)
+- Top 5 films : upvotes, downvotes, score net (`upvotes_count - downvotes_count`)
+- Top 5 localisations : upvotes + film associé
+
+`films/index.blade.php` — colonnes **Upvotes** et **Downvotes** ajoutées au tableau admin.
+
+`localisations/index.blade.php` — colonne **Upvotes** ajoutée au tableau admin.
+
+### 10. Vérification
 
 1. Lancer le worker dans un terminal dédié : `php artisan queue:listen`
 2. Se connecter et cliquer sur un bouton de vote
 3. Le terminal doit afficher : `App\Jobs\RecalculateLocalisationVotes` (ou `RecalculateFilmVotes`) avec statut `DONE`
 4. Rafraîchir la page → le compteur est mis à jour et le bouton est colorié
+5. Vérifier le dashboard admin → les stats et tops reflètent les votes
 
 ---
 
@@ -892,34 +950,28 @@ Supprimer les emplacements créés **depuis plus de 14 jours** et ayant **moins 
 1. Créer la commande :
 
 ```bash
-php artisan make:command CleanOldLocations
+php artisan make:command CleanOldLocalisations
 ```
 
 Dans `handle()` :
 
 ```php
-Location::where('created_at', '<', now()->subDays(14))
+Localisation::where('created_at', '<', now()->subDays(14))
     ->where('upvotes_count', '<', 2)
     ->delete();
 ```
 
-2. Enregistrer dans le scheduler (`routes/console.php` ou `app/Console/Kernel.php`) :
+2. Enregistrer dans le scheduler (`routes/console.php`) :
 
 ```php
-Schedule::command('app:clean-old-locations')->daily();
+Schedule::command('app:clean-old-localisations')->daily();
 ```
 
 3. Tester manuellement :
 
 ```bash
-php artisan app:clean-old-locations
+php artisan app:clean-old-localisations
 ```
-
-### Checklist
-
-- [ ] Commande créée avec la bonne règle métier (14 jours / < 2 upvotes)
-- [ ] Commande enregistrée dans le scheduler (quotidienne)
-- [ ] Test manuel fonctionnel
 
 ---
 

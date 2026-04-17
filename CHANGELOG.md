@@ -27,6 +27,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] - 17/04/2026
+
+### Ajouté
+
+- Commande Artisan `app:clean-old-localisations` (classe `CleanOldLocalisations`) : supprime les localisations créées depuis plus de 14 jours ayant moins de 2 upvotes, affiche le nombre de lignes supprimées via `$this->info()`
+- Entrée dans le scheduler (`routes/console.php`) : `Schedule::command('app:clean-old-localisations')->daily()` — exécution automatique chaque nuit
+
+### Corrigé
+
+- Nom de modèle erroné `Location` → `Localisation` dans la commande
+- Import incorrect `Illuminate\Console\Scheduling\Schedule` (classe concrète) → `Illuminate\Support\Facades\Schedule` (facade) dans `routes/console.php`
+- Signature de commande `app:clean-old-locations` → `app:clean-old-localisations` pour correspondre à l'appel du scheduler
+
+---
+
+## [0.4.0] - 16/04/2026
+
+### Ajouté
+
+- Tables `localisation_votes` et `film_votes` avec contrainte d'unicité (`user_id` + entité) et `cascadeOnDelete`
+- Champ `is_upvote` (boolean) sur `film_votes` pour distinguer upvote et downvote
+- Colonnes dénormalisées `upvotes_count` sur `localisations`, `upvotes_count` et `downvotes_count` sur `films`
+- Modèles `LocalisationVote` et `FilmVote` (`$fillable`, `$casts`, relations `belongsTo`)
+- Jobs `RecalculateLocalisationVotes` et `RecalculateFilmVotes` : recalculent les compteurs en arrière-plan, modèle injecté dans le constructeur
+- Queue driver `database` (`QUEUE_CONNECTION=database`)
+- Routes `POST /localisations/{localisation}/vote` et `POST /films/{film}/vote` dans le groupe `middleware('auth')`
+- Action `LocalisationController@vote` : toggle (re-cliquer annule le vote), dispatch du job
+- Action `FilmController@vote` : toggle ou changement de sens (upvote ↔ downvote), dispatch du job
+- Bouton `+N` (upvote) sur `localisations/show` et dans la liste de `films/show` et `home` — vert si vote actif
+- Boutons `+N` / `-N` (upvote/downvote) sur `films/show` et dans les cards de `home` — vert/rouge selon vote actif
+- Compteurs et état des boutons visibles en lecture seule pour les non-connectés
+- `LocalisationController@show` passe `$userHasVoted` à la vue
+- `FilmController@show` passe `$userVote` et `$localisationVotes` (keyBy) à la vue
+- `HomeController` charge `$filmVotes` et `$localisationVotes` en une requête chacun (`keyBy`) pour éviter les N+1
+- Dashboard : barre de stats globales (total films, localisations, upvotes/downvotes), top 5 films avec score net, top 5 localisations par upvotes
+- `films/index` (admin) : colonnes Upvotes et Downvotes ajoutées au tableau
+- `localisations/index` (admin) : colonne Upvotes ajoutée au tableau
+
+### Supprimé
+
+- Anciens champs `upvotes` et `downvotes` (entiers bruts) sur la migration `films` et le modèle `Film`
+- Ancien champ `upvotes_count` sur la migration `localisations` et le modèle `Localisation` (remplacé par compteur mis à jour par job)
+- Entrées correspondantes dans `FilmFactory` et `LocalisationFactory`
+
+### Corrigé
+
+- `FilmVote` créé vide par `make:model` — `$fillable`, `$casts` et relations ajoutés manuellement
+- `LocalisationVote` manquait l'import `use BelongsTo` — corrigé
+- Les deux migrations de votes générées avec le même timestamp — renommage avec décalage d'une seconde
+- Doublon `$table->timestamp('created_at')` dans les migrations de votes — supprimé (`timestamps()` suffit)
+- Méthodes `vote` inversées entre `LocalisationController` et `FilmController` — remises dans le bon controller
+- `$request` absent des paramètres de `FilmController@vote` — ajouté
+
+---
+
 ## [0.3.0] - 16/04/2026
 
 ### Ajouté
