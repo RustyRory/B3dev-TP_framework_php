@@ -1184,11 +1184,135 @@ php artisan vendor:publish --tag="cashier-migrations"
 php artisan migrate
 ```
 
-2. Ajouter le trait `Billable` au modèle `User`.
+Cela crée les tables `subscriptions`, `subscription_items` et ajoute des colonnes sur `users`.
 
-3. Créer une page de souscription simple avec un formulaire Stripe.
+2. Créer un compte Stripe et récupérer les clés
 
-4. Tester avec la carte `4242 4242 4242 4242`.
+- Aller sur https://dashboard.stripe.com → crée un compte
+- Dans le menu gauche Developers → API keys
+- Copier Publishable key et Secret key (mode test)
+
+Dans .env :
+```env
+STRIPE_KEY=pk_test_...
+STRIPE_SECRET=sk_test_...
+```
+
+3. Ajouter le trait `Billable` au modèle `User`.
+
+```php
+// app/Models/User.php — ajouter l'import et le trait
+use Laravel\Cashier\Billable;
+
+class User extends Authenticatable
+{
+    use HasFactory, Notifiable, Billable;
+
+```
+
+4. Créer un produit/prix dans Stripe
+
+- Dans le dashboard Stripe → Products → Add product
+- Nom : `Abonnement CineMap`, prix : ex. `5.00 € / mois`, type Recurring
+- Après création, copier le Price ID (commence par price_...)
+
+Dans .env :
+```env
+STRIPE_PRICE_ID=price_...
+```
+
+5. Créer une page de souscription simple avec un formulaire Stripe.
+
+Il faut 3 choses : une route, un controller, une vue.
+
+```bash
+php artisan make:controller SubscriptionController
+```
+
+```php
+// SubscriptionController
+use Illuminate\Http\Request;
+
+public function index()
+{
+    return view('subscription.index', [
+        'intent' => auth()->user()->createSetupIntent(),
+    ]);
+}
+
+public function store(Request $request)
+{
+    $request->validate(['payment_method' => 'required']);
+
+    $user = auth()->user();
+
+    $user->createOrGetStripeCustomer();
+
+    $user->addPaymentMethod($request->payment_method);
+
+    $user->newSubscription('default', env('STRIPE_PRICE_ID'))
+        ->create($request->payment_method);
+
+    return redirect('/home')->with('success', 'Abonnement activé !');
+}
+```
+
+Route dans web.php (dans le groupe middleware('auth')) :
+
+```php
+Route::get('/subscription', [SubscriptionController::class, 'index'])->name('subscription.index');
+Route::post('/subscription', [SubscriptionController::class, 'store'])->name('subscription.store');
+```
+
+Vue resources/views/subscription/index.blade.php avec le formulaire Stripe.js :
+
+```php
+<x-app-layout>
+    <x-slot name="header">Abonnement</x-slot>
+
+    <div class="py-12 max-w-xl mx-auto">
+        <form id="payment-form" action="{{ route('subscription.store') }}" method="POST">
+            @csrf
+            <input type="hidden" name="payment_method" id="payment_method">
+
+            <div id="card-element" class="p-3 border rounded mb-4"></div>
+            <p id="card-errors" class="text-red-500 text-sm mb-4"></p>
+
+            <button type="submit"
+                class="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded hover:bg-blue-700">
+                S'abonner — 5 €/mois
+            </button>
+        </form>
+    </div>
+
+    <script src="https://js.stripe.com/v3/"></script>
+    <script>
+        const stripe = Stripe('{{ config('cashier.key') }}');
+        const elements = stripe.elements();
+        const cardElement = elements.create('card');
+        cardElement.mount('#card-element');
+
+        const form = document.getElementById('payment-form');
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const { setupIntent, error } = await stripe.confirmCardSetup(
+                '{{ $intent->client_secret }}',
+                { payment_method: { card: cardElement } }
+            );
+            if (error) {
+                document.getElementById('card-errors').textContent = error.message;
+            } else {
+                document.getElementById('payment_method').value = setupIntent.payment_method;
+                form.submit();
+            }
+        });
+    </script>
+</x-app-layout>
+```
+
+6. Tester
+
+Carte de test Stripe : `4242 4242 4242 4242` — date future, CVC n'importe lequel.
 
 #### JWT
 
@@ -1217,15 +1341,6 @@ Route::middleware(['auth:api', 'subscribed'])->group(function () {
 ```
 
 4. La réponse JSON doit contenir : infos du film + liste des emplacements + `upvotes_count`.
-
-### Checklist
-
-- [ ] Stripe fonctionnel en mode test (carte `4242 4242 4242 4242`)
-- [ ] Page de souscription accessible
-- [ ] `JWT_SECRET` généré et configuré
-- [ ] Route `POST /api/auth/login` retourne un token JWT
-- [ ] Route `GET /api/films/{film}/locations` accessible uniquement avec JWT valide + abonnement actif
-- [ ] Réponse JSON contient les infos du film et ses emplacements
 
 ---
 

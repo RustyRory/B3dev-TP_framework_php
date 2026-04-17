@@ -5,6 +5,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LocalisationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SocialiteController;
+use App\Http\Controllers\SubscriptionController;
 use App\Models\Film;
 use App\Models\Localisation;
 use Illuminate\Support\Facades\Route;
@@ -39,8 +40,13 @@ Route::middleware('auth')->group(function () {
     Route::put('/localisations/{localisation}', [LocalisationController::class, 'update'])->name('localisations.update');
     Route::delete('/localisations/{localisation}', [LocalisationController::class, 'destroy'])->name('localisations.destroy');
 
+    // Votes — actions utilisateur (sur toutes les localisations/films)
     Route::post('/localisations/{localisation}/vote', [LocalisationController::class, 'vote'])->name('localisations.vote');
     Route::post('/films/{film}/vote', [FilmController::class, 'vote'])->name('films.vote');
+
+    // Abonnement
+    Route::get('/subscription', [SubscriptionController::class, 'index'])->name('subscription.index');
+    Route::post('/subscription', [SubscriptionController::class, 'store'])->name('subscription.store');
 });
 
 // Dashboard — réservé aux admins
