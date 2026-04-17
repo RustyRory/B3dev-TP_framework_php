@@ -1027,23 +1027,48 @@ git add -u
 
 ### Ce qu'il faut faire
 
-1. Installer Socialite :
+1. Installer Socialite + le provider Discord communautaire :
 
 ```bash
 composer require laravel/socialite
+composer require socialiteproviders/discord
 ```
 
-2. Ajouter la colonne `oauth_id` sur la table `users` (pour retrouver l'utilisateur au second login) :
+> Discord n'est pas un driver natif de Socialite — le package `socialiteproviders/discord` est obligatoire.
+
+2. Enregistrer le provider Discord dans `app/Providers/AppServiceProvider.php` :
+
+```php
+use SocialiteProviders\Manager\SocialiteWasCalled;
+
+public function boot(): void
+{
+    \Event::listen(SocialiteWasCalled::class, \SocialiteProviders\Discord\DiscordExtendSocialite::class);
+}
+```
+
+3. Ajouter la colonne `oauth_id` sur la table `users` :
 
 ```bash
 php artisan make:migration add_oauth_id_to_users_table --table=users
+php artisan migrate
 ```
 
 ```php
+// up()
 $table->string('oauth_id')->nullable()->unique();
+
+// down()
+$table->dropColumn('oauth_id');
 ```
 
-3. Configurer le fournisseur dans `config/services.php` :
+Ajouter `oauth_id` dans le `#[Fillable]` du modèle `User` :
+
+```php
+#[Fillable(['name', 'email', 'password', 'is_admin', 'oauth_id'])]
+```
+
+4. Configurer le fournisseur dans `config/services.php` :
 
 ```php
 'discord' => [
@@ -1053,18 +1078,11 @@ $table->string('oauth_id')->nullable()->unique();
 ],
 ```
 
-4. Créer l'application Discord :
+5. Créer l'application Discord et renseigner le `.env` :
 
-- Sur https://discord.com/developers/applications
-- Cliquer sur `New Application` → nom : `CineMap`
-- Dans le menu gauche, aller dans OAuth2
-  - `Client ID` → copier cette valeur dans `DISCORD_CLIENT_ID`
-  - `Client Secret` → cliquer sur `Reset Secret` → copier dans `DISCORD_CLIENT_SECRET`
-- Dans la section "Redirects", cliquer sur `Add Redirect` et ajouter :
-  - `http://localhost:8000/auth/discord/callback`
-  - Puis Save Changes.
-
-5. Ajouter les variables dans `.env` :
+- Sur https://discord.com/developers/applications → **New Application** → nom : `CineMap`
+- Menu gauche **OAuth2** → copier `Client ID` et `Client Secret`
+- Section **Redirects** → ajouter `http://localhost:8000/auth/discord/callback` → Save Changes
 
 ```
 DISCORD_CLIENT_ID=
@@ -1072,34 +1090,40 @@ DISCORD_CLIENT_SECRET=
 DISCORD_REDIRECT_URI=http://localhost:8000/auth/discord/callback
 ```
 
-5. Créer un controller dédié `SocialiteController` :
+6. Créer `SocialiteController` :
 
 ```bash
 php artisan make:controller SocialiteController
 ```
 
-Avec deux méthodes :
-
 ```php
+use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Laravel\Socialite\Facades\Socialite;
 
 public function redirectToDiscord()
 {
-    return Socialite::driver('discord')->redirect();
+    return Socialite::driver('discord')->stateless()->redirect();
 }
 
 public function handleDiscordCallback()
 {
-    $discordUser = Socialite::driver('discord')->user();
+    $discordUser = Socialite::driver('discord')->stateless()->user();
 
-    $user = User::firstOrCreate(
-        ['oauth_id' => $discordUser->getId()],
-        [
+    $user = User::where('oauth_id', $discordUser->getId())
+        ->orWhere('email', $discordUser->getEmail())
+        ->first();
+
+    if ($user) {
+        $user->update(['oauth_id' => $discordUser->getId()]);
+    } else {
+        $user = User::create([
+            'oauth_id' => $discordUser->getId(),
             'name'     => $discordUser->getName(),
             'email'    => $discordUser->getEmail(),
             'password' => bcrypt(str()->random(32)),
-        ]
-    );
+        ]);
+    }
 
     Auth::login($user);
 
@@ -1107,20 +1131,32 @@ public function handleDiscordCallback()
 }
 ```
 
-6. Ajouter les routes OAuth dans `routes/web.php` (hors middleware `auth`) :
+> `->stateless()` est nécessaire pour éviter l'`InvalidStateException` en développement local.
+>
+> La logique `orWhere('email')` permet de lier un compte existant (créé par formulaire) à Discord sans doublon.
+
+7. Ajouter les routes dans `routes/web.php` (hors tout middleware) :
 
 ```php
 Route::get('/auth/discord', [SocialiteController::class, 'redirectToDiscord']);
 Route::get('/auth/discord/callback', [SocialiteController::class, 'handleDiscordCallback']);
 ```
 
-7. Ajouter le bouton sur la vue login (`resources/views/auth/login.blade.php`) :
+8. Ajouter le bouton sur la vue login (`resources/views/auth/login.blade.php`), séparé du formulaire par un séparateur "ou" :
 
 ```html
-<a href="/auth/discord"
-   class="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded">
-    Se connecter avec Discord
-</a>
+<div class="mt-6 flex items-center gap-3">
+    <div class="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
+    <span class="text-sm text-gray-500 dark:text-gray-400">ou</span>
+    <div class="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
+</div>
+
+<div class="mt-4">
+    <a href="/auth/discord"
+       class="flex items-center justify-center gap-3 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md transition">
+        Se connecter avec Discord
+    </a>
+</div>
 ```
 
 ---

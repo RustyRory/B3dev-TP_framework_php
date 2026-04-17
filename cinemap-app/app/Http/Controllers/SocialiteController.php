@@ -11,21 +11,27 @@ class SocialiteController extends Controller
     //
     public function redirectToDiscord()
     {
-        return Socialite::driver('discord')->redirect();
+        return Socialite::driver('discord')->stateless()->redirect();
     }
 
     public function handleDiscordCallback()
     {
-        $discordUser = Socialite::driver('discord')->user();
+        $discordUser = Socialite::driver('discord')->stateless()->user();
 
-        $user = User::firstOrCreate(
-            ['oauth_id' => $discordUser->getId()],
-            [
+        $user = User::where('oauth_id', $discordUser->getId())
+            ->orWhere('email', $discordUser->getEmail())
+            ->first();
+
+        if ($user) {
+            $user->update(['oauth_id' => $discordUser->getId()]);
+        } else {
+            $user = User::create([
+                'oauth_id' => $discordUser->getId(),
                 'name' => $discordUser->getName(),
                 'email' => $discordUser->getEmail(),
                 'password' => bcrypt(str()->random(32)),
-            ]
-        );
+            ]);
+        }
 
         Auth::login($user);
 
