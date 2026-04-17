@@ -24,6 +24,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Supprimé
 
 -
+---
+
+## [0.8.0] - 17/04/2026
+
+### Ajouté
+
+- Package `laravel/cashier` installé (abonnements Stripe récurrents)
+- Trait `Billable` ajouté au modèle `User`
+- Migrations Cashier publiées (`vendor:publish --tag="cashier-migrations"`) et appliquées : colonnes Stripe sur `users` + table `subscriptions`
+- Variables `.env` : `STRIPE_KEY`, `STRIPE_SECRET`, `STRIPE_PRICE_ID`
+- Produit et prix récurrent créé dans le dashboard Stripe (`5 €/mois`)
+- `SubscriptionController` avec `index` (page abonnement) et `store` (souscription via `newSubscription`)
+- Vue `subscription/index.blade.php` : card tarif + formulaire Stripe Elements (SetupIntent)
+- Si l'utilisateur est déjà abonné : formulaire grisé (`opacity-50 pointer-events-none`), bouton désactivé, JS Stripe non chargé
+- Routes `GET /subscription` et `POST /subscription` dans le groupe `middleware('auth')`
+- Package `php-open-source-saver/jwt-auth` installé
+- Config JWT publiée (`vendor:publish --provider="PHPOpenSourceSaver\JWTAuth\..."`) et secret généré (`php artisan jwt:secret` → `JWT_SECRET` dans `.env`)
+- Guard `api` avec driver `jwt` dans `config/auth.php`
+- Interface `JWTSubject` implémentée sur `User` (`getJWTIdentifier`, `getJWTCustomClaims`)
+- `ApiAuthController@login` : vérifie les credentials ET l'abonnement avant de délivrer le token JWT (401 si mauvais credentials, 403 si non abonné)
+- `FilmApiController@locations` : retourne le film et ses localisations en JSON (champs sélectifs)
+- `routes/api.php` déclaré avec `Route::post('/auth/login')` public et `GET /films/{film}/locations` protégé par `middleware('auth:api')`
+- `routes/api.php` enregistré dans `bootstrap/app.php` (obligatoire en Laravel 11 — non chargé automatiquement)
+
+### Corrigé
+
+- `ext-bcmath` manquant : `sudo apt install php8.3-bcmath` requis par Cashier v16
+- Migrations Cashier en double (double `vendor:publish`) : suppression du second jeu de fichiers + `migrate:fresh --seed`
+- `STRIPE_PRICE_ID` non renseigné dans `.env` → `newSubscription()` recevait `null` — corrigé en ajoutant la variable
+- `GET /api/films/1/locations` retournait 404 en Laravel 11 : `routes/api.php` n'est pas auto-chargé — résolu en ajoutant `api: __DIR__.'/../routes/api.php'` dans `bootstrap/app.php`
+- `Target class [subscribed] does not exist` (HTTP 500) : middleware `subscribed` inexistant retiré de `routes/api.php` — la vérification d'abonnement est dans `ApiAuthController@login`
+- Redirection après inscription vers `/dashboard` (inexistant) → corrigé en `route('home')` dans `RegisteredUserController@store`
 
 ---
 
