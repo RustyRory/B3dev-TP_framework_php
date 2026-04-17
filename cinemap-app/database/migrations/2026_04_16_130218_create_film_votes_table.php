@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('film_votes', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('film_id')->constrained()->cascadeOnDelete();     
+            $table->foreignId('film_id')->constrained()->cascadeOnDelete();
             $table->boolean('is_upvote'); // true = upvote, false = downvote
             $table->unique(['user_id', 'film_id']); // 1 vote par utilisateur
             $table->timestamps();

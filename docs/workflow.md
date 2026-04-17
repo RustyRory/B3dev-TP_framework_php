@@ -981,16 +981,43 @@ php artisan app:clean-old-localisations
 
 ### Ce qu'il faut faire
 
+Depuis le dossier cinemap-app :
+
 ```bash
+cd cinemap-app
 ./vendor/bin/pint
 ```
 
+#### Vérifier sans modifier (dry-run)
+
+Si l'on veut voir ce qui serait changé sans toucher aux fichiers :
+
+```bash
+./vendor/bin/pint --test
+```
+> Retourne un code d'erreur si des fichiers ne sont pas conformes (utile en CI).
+
+### git hook — pre-commit
+
 > Lancez cette commande **avant chaque commit** et obligatoirement avant le rendu final.
 
-### Checklist
+#### Mise en place
 
-- [ ] `./vendor/bin/pint` s'exécute sans erreur
-- [ ] Commande mentionnée dans le README
+Crée le fichier .git/hooks/pre-commit :
+
+```bash
+#!/bin/sh
+
+cd cinemap-app && ./vendor/bin/pint
+
+git add -u
+```
+
+#### Ce qui se passe à chaque git commit
+
+1. Pint formate tous les fichiers PHP
+2. git add -u re-stage les fichiers modifiés par Pint
+3. Le commit se crée avec le code déjà formaté
 
 ---
 
