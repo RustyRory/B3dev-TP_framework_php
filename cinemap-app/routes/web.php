@@ -16,13 +16,13 @@ Route::get('/home', [HomeController::class, 'index'])->name('home');
 
 Route::get('/dashboard', function () {
     return view('dashboard', [
-        'totalFilms'          => Film::count(),
-        'totalLocalisations'  => Localisation::count(),
-        'totalFilmUpvotes'    => Film::sum('upvotes_count'),
-        'totalFilmDownvotes'  => Film::sum('downvotes_count'),
-        'totalLocVotes'       => Localisation::sum('upvotes_count'),
-        'topFilms'            => Film::orderByDesc('upvotes_count')->take(5)->get(['id', 'name', 'upvotes_count', 'downvotes_count']),
-        'topLocalisations'    => Localisation::with('film')->orderByDesc('upvotes_count')->take(5)->get(['id', 'film_id', 'name', 'upvotes_count']),
+        'totalFilms' => Film::count(),
+        'totalLocalisations' => Localisation::count(),
+        'totalFilmUpvotes' => Film::sum('upvotes_count'),
+        'totalFilmDownvotes' => Film::sum('downvotes_count'),
+        'totalLocVotes' => Localisation::sum('upvotes_count'),
+        'topFilms' => Film::orderByDesc('upvotes_count')->take(5)->get(['id', 'name', 'upvotes_count', 'downvotes_count']),
+        'topLocalisations' => Localisation::with('film')->orderByDesc('upvotes_count')->take(5)->get(['id', 'film_id', 'name', 'upvotes_count']),
     ]);
 })->middleware(['auth', 'admin'])->name('dashboard');
 
@@ -53,7 +53,6 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
     Route::get('/localisations', [LocalisationController::class, 'index'])->name('localisations.index');
 });
-
 
 // Routes publiques paramétrées — définies APRÈS le groupe auth
 // pour que /films/create et /localisations/create soient capturés en premier

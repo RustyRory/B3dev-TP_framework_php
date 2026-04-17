@@ -84,13 +84,41 @@ database/
 ## Commandes utiles
 
 ```bash
-php artisan serve                         # Lancer le serveur
-php artisan migrate                       # Lancer les migrations
-php artisan migrate:fresh --seed          # Reset BDD + seeders
-php artisan queue:listen                  # Lancer le worker de queue
-php artisan app:clean-old-locations       # Suppression locations obsolètes (test manuel)
-./vendor/bin/pint                         # Formater le code
+php artisan serve                              # Lancer le serveur
+php artisan migrate                            # Lancer les migrations
+php artisan migrate:fresh --seed               # Reset BDD + seeders
+php artisan queue:listen                       # Lancer le worker de queue
+php artisan app:clean-old-localisations        # Suppression localisations obsolètes (test manuel)
+./vendor/bin/pint                              # Formater le code (PSR-12 / conventions Laravel)
 ```
+
+---
+
+## Qualité du code
+
+### Formateur automatique (Pint)
+
+[Laravel Pint](https://laravel.com/docs/pint) est configuré sur ce projet. Lancez-le manuellement avant chaque commit :
+
+```bash
+cd cinemap-app
+./vendor/bin/pint
+```
+
+### Hook git pre-commit (automatique)
+
+Un hook `pre-commit` est disponible pour formater le code automatiquement à chaque commit. Il n'est pas versionné (`.git/hooks/` est ignoré par git) — il faut donc le créer manuellement une fois après le clone :
+
+```bash
+cat > .git/hooks/pre-commit << 'EOF'
+#!/bin/sh
+cd cinemap-app && ./vendor/bin/pint
+git add -u
+EOF
+chmod +x .git/hooks/pre-commit
+```
+
+Une fois en place, Pint s'exécute automatiquement avant chaque `git commit`.
 
 ---
 

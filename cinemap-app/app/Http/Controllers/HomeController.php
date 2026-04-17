@@ -16,8 +16,8 @@ class HomeController extends Controller
             ->orderBy('name')
             ->get();
 
-        $filmVotes          = collect();
-        $localisationVotes  = collect();
+        $filmVotes = collect();
+        $localisationVotes = collect();
 
         if (auth()->check()) {
             $filmVotes = FilmVote::where('user_id', auth()->id())

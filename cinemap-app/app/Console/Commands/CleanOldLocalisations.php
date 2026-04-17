@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Localisation;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
-use App\Models\Localisation;
 
 #[Signature('app:clean-old-localisations')]
 #[Description('Supprime les localisations créées depuis plus de 14 jours avec moins de 2 upvotes')]
