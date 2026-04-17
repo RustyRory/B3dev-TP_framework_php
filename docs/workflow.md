@@ -1023,7 +1023,7 @@ git add -u
 
 ## Étape 7 — Connexion OAuth
 
-**Objectif :** ajouter un bouton "Se connecter avec GitHub" (ou autre) sur la page de login.
+**Objectif :** ajouter un bouton "Se connecter avec Discord" sur la page de login.
 
 ### Ce qu'il faut faire
 
@@ -1033,33 +1033,94 @@ git add -u
 composer require laravel/socialite
 ```
 
-2. Configurer le fournisseur dans `config/services.php` :
+2. Ajouter la colonne `oauth_id` sur la table `users` (pour retrouver l'utilisateur au second login) :
+
+```bash
+php artisan make:migration add_oauth_id_to_users_table --table=users
+```
 
 ```php
-'github' => [
-    'client_id'     => env('GITHUB_CLIENT_ID'),
-    'client_secret' => env('GITHUB_CLIENT_SECRET'),
-    'redirect'      => env('GITHUB_REDIRECT_URI'),
+$table->string('oauth_id')->nullable()->unique();
+```
+
+3. Configurer le fournisseur dans `config/services.php` :
+
+```php
+'discord' => [
+    'client_id'     => env('DISCORD_CLIENT_ID'),
+    'client_secret' => env('DISCORD_CLIENT_SECRET'),
+    'redirect'      => env('DISCORD_REDIRECT_URI'),
 ],
 ```
 
-3. Ajouter les routes OAuth :
+4. Ajouter les variables dans `.env` :
 
-```php
-Route::get('/auth/github', [AuthController::class, 'redirectToGithub']);
-Route::get('/auth/github/callback', [AuthController::class, 'handleGithubCallback']);
+```
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+DISCORD_REDIRECT_URI=http://localhost:8000/auth/discord/callback
 ```
 
-4. Dans le callback, créer ou connecter l'utilisateur via `User::firstOrCreate()`.
+5. Créer un controller dédié `SocialiteController` :
 
-5. Ajouter le bouton sur la vue login.
+```bash
+php artisan make:controller SocialiteController
+```
+
+Avec deux méthodes :
+
+```php
+use Laravel\Socialite\Facades\Socialite;
+
+public function redirectToDiscord()
+{
+    return Socialite::driver('discord')->redirect();
+}
+
+public function handleDiscordCallback()
+{
+    $discordUser = Socialite::driver('discord')->user();
+
+    $user = User::firstOrCreate(
+        ['oauth_id' => $discordUser->getId()],
+        [
+            'name'     => $discordUser->getName(),
+            'email'    => $discordUser->getEmail(),
+            'password' => bcrypt(str()->random(32)),
+        ]
+    );
+
+    Auth::login($user);
+
+    return redirect('/home');
+}
+```
+
+6. Ajouter les routes OAuth dans `routes/web.php` (hors middleware `auth`) :
+
+```php
+Route::get('/auth/discord', [SocialiteController::class, 'redirectToDiscord']);
+Route::get('/auth/discord/callback', [SocialiteController::class, 'handleDiscordCallback']);
+```
+
+7. Ajouter le bouton sur la vue login (`resources/views/auth/login.blade.php`) :
+
+```html
+<a href="/auth/discord"
+   class="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded">
+    Se connecter avec Discord
+</a>
+```
 
 ### Checklist
 
 - [ ] Package Socialite installé
-- [ ] Variables `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_REDIRECT_URI` dans `.env`
-- [ ] Bouton OAuth visible sur la page de login
-- [ ] Connexion OAuth crée ou retrouve l'utilisateur en base
+- [ ] Migration `oauth_id` (nullable, unique) sur `users` créée et jouée
+- [ ] Variables `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI` dans `.env`
+- [ ] `SocialiteController` créé avec `redirectToDiscord` et `handleDiscordCallback`
+- [ ] Routes `/auth/discord` et `/auth/discord/callback` ajoutées dans `web.php`
+- [ ] Bouton Discord visible sur la page de login
+- [ ] Connexion OAuth crée ou retrouve l'utilisateur en base via `oauth_id`
 
 ---
 
