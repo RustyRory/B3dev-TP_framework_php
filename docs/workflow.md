@@ -970,7 +970,7 @@ Schedule::command('app:clean-old-localisations')->daily();
 3. Tester manuellement :
 
 ```bash
-php artisan app:clean-old-locations
+php artisan app:clean-old-localisations
 ```
 
 ### Checklist
