@@ -16,7 +16,7 @@ WORKDIR /var/www/html
 
 # Dépendances PHP (layer séparé pour le cache Docker)
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --optimize-autoloader --no-scripts --no-autoloader
+RUN composer install --optimize-autoloader --no-scripts --no-autoloader
 
 # Dépendances Node (layer séparé)
 COPY package.json package-lock.json ./
