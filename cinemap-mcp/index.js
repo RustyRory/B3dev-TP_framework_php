@@ -23,7 +23,7 @@ server.tool(
     "Retourne les emplacements de tournage d'un film CineMap",
     { film_id: z.number().describe("ID du film") },
     async ({ film_id }) => {
-        const res = await fetch(`${BASE_URL}/api/films/${film_id}/locations`, {
+        const res = await fetch(`${BASE_URL}/api/films/${film_id}/localisations`, {
             headers: { Authorization: `Bearer ${JWT_TOKEN}` },
         });
         const data = await res.json();
