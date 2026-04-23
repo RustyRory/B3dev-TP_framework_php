@@ -26,6 +26,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -
 ---
 
+## [0.11.0] - 23/04/2026
+
+### Ajouté
+
+- Service `cinemap` ajouté dans `/var/www/docker-compose.yml` sur le VPS : image `www-cinemap`, port `3012:80`, volume SQLite persistant (`./data/cinemap:/var/www/html/database`), `env_file` pointant vers le `.env` de production
+- `cinemap-app/deployment/Dockerfile` : image `php:8.3-fpm-alpine` avec nginx, supervisord, extensions PHP (`pdo_sqlite`, `bcmath`, `zip`, `mbstring`, `intl`), Composer et Node/Vite — build en layers séparés pour optimiser le cache Docker
+- `cinemap-app/deployment/nginx.conf` : configuration nginx interne au container (FastCGI PHP-FPM sur `127.0.0.1:9000`, `try_files` pour le routing Laravel)
+- `cinemap-app/deployment/supervisord.conf` : supervision de `php-fpm` et `nginx` dans le même container
+- `cinemap-app/deployment/entrypoint.sh` : création du fichier SQLite, permissions, `migrate --force`, `config:cache` et `view:cache` au démarrage
+- Bloc nginx `/cinemap/` ajouté dans `/etc/nginx/sites-available/vps` sur le VPS : reverse proxy vers `127.0.0.1:3012` avec `rewrite` pour strip du préfixe
+- `.env` de production créé sur le VPS avec `APP_URL=http://78.138.58.95/cinemap`, `ASSET_URL`, `SESSION_PATH=/cinemap` et secrets Stripe/Discord/JWT
+
+---
+
 ## [0.10.0] - 23/04/2026
 
 ### Ajouté
