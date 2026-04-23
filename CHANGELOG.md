@@ -26,6 +26,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -
 ---
 
+## [0.9.0] - 23/04/2026
+
+### Ajouté
+
+- Projet `cinemap-mcp/` (Node.js, `type: module`) avec `package.json` et dépendance `@modelcontextprotocol/sdk`
+- Serveur MCP `index.js` exposant deux outils via `StdioServerTransport` (transport local pour Claude Code / Claude Desktop) :
+  - `list_films` : appelle `GET /api/films` (route publique) et retourne la liste complète des films
+  - `get_locations_for_film` : appelle `GET /api/films/{film}/locations` avec le token JWT Bearer et retourne les emplacements de tournage du film donné
+- Variable d'environnement `CINEMAP_JWT_TOKEN` dans le `.env` du projet MCP — token JWT d'un utilisateur abonné obtenu via `POST /api/auth/login`
+- Route publique `GET /api/films` dans `routes/api.php` (hors groupe `auth:api`) pour alimenter l'outil `list_films`
+- Méthode `FilmApiController@index` : retourne tous les films triés par nom avec les champs `id`, `name`, `producer`, `release_year` en JSON
+- Configuration du serveur MCP dans `~/.config/Claude/settings.json` : entrée `cinemap` avec chemin absolu vers `index.js` et `CINEMAP_JWT_TOKEN` en variable d'environnement
+
+---
+
 ## [0.8.0] - 17/04/2026
 
 ### Ajouté

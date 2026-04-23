@@ -15,4 +15,11 @@ class FilmApiController extends Controller
             ]),
         ]);
     }
+
+    public function index()
+    {
+        return response()->json(
+            Film::query()->orderBy('name')->get(['id', 'name', 'producer', 'release_year'])
+        );
+    }
 }

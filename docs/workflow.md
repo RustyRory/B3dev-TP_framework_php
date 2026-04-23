@@ -46,7 +46,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // Nouvelles routes protégées ici
+    // Nouvelles routes ici
 });
 ```
 
@@ -1395,43 +1395,785 @@ curl -s -X POST http://localhost:8000/api/auth/login \
 curl -s http://localhost:8000/api/films/1/locations \
   -H "Authorization: Bearer <token>" | jq .
 ```
-
 ---
 
 ## Étape 9 — Serveur MCP
 
+### C'est quoi ?
+
+**MCP** est un protocole qui permet à une IA d'**appeler des outils externes** de façon standardisée. Au lieu d'expliquer à l'IA **"voici les données de mon app"**, tu lui donnes des outils qu'elle peut appeler elle-même pour aller chercher les données.
+
+**Analogie** : c'est comme une API REST, mais conçue pour être consommée par une IA plutôt que par un humain ou une app frontend.
+
+### Architecture
+
+```
+Claude Desktop / Claude Code
+        │
+        │  protocole MCP (JSON-RPC via stdio ou HTTP)
+        ▼
+   Serveur MCP  ←── ton code (Node.js, Python, PHP...)
+        │
+        │  appels directs (DB, HTTP, fichiers...)
+        ▼
+   Ton application (CineMap)
+```
+
+Le serveur MCP expose des tools (outils). L'IA décide quand les appeler en fonction de la conversation.
+
+### Les 3 primitives MCP
+
+| Primitive | Rôle | Exemple
+|---|---|
+| Tools | Actions que l'IA peut déclencher | `list_films`, `get_locations_for_film` |
+| Resources | Données que l'IA peut lire | Un fichier, une page web |
+| Prompts | Templates de prompts réutilisables | — |
+Pour le TP, besoin que des Tools.
+
+### Comment fonctionne un tool ?
+
+Définir :
+1. Un nom : list_films
+2. Une description : "Retourne tous les films de CineMap" — l'IA lit ça pour savoir quand l'appeler
+3. Un schéma JSON des paramètres attendus
+4. Une fonction handler qui fait le vrai travail
+
+Exemple de dialogue IA :
+```
+> Utilisateur : "Quels films sont disponibles sur CineMap ?"
+> Claude : appelle list_films → reçoit la liste → répond avec les données
+```
+
+### MCP pour le TP
+
 **Objectif :** exposer deux outils en lecture seule pour permettre à une IA d'interroger l'application.
 
-### Outils attendus
+#### Outils attendus
 
 | Outil | Description |
 |---|---|
 | `list_films` | Retourne la liste de tous les films |
 | `get_locations_for_film` | Retourne les emplacements d'un film donné |
 
-### Ce qu'il faut faire
+#### Ce qu'il faut faire
 
-1. Choisir une implémentation (package PHP MCP, script Node.js, pont vers l'API JSON existante…).
-2. Implémenter les deux outils en lecture seule.
-3. Documenter le lancement du serveur MCP dans le README.
-4. Tester avec un client MCP compatible (ex. Claude Desktop, un client MCP CLI…).
+**script Node.js** qui appelle ton API Laravel existante (étape 8).
 
-> Conseil : réutiliser la route `/api/films/{film}/locations` déjà créée à l'étape 8 pour `get_locations_for_film`.
+On a déjà :
+- GET /api/films/{film}/locations (protégé JWT)
+- Une DB avec des films et des localisations
+Il faut un pont MCP → API.
 
-### Checklist
+### Structure du projet MCP
 
-- [ ] Serveur MCP démarre sans erreur
-- [ ] `list_films` retourne la liste des films
-- [ ] `get_locations_for_film` retourne les emplacements d'un film
-- [ ] Lancement documenté dans le README
+```
+cinemap-mcp/
+├── package.json
+└── index.js        ← le serveur MCP
+```
+
+`package.json`
+```json
+{
+  "name": "cinemap-mcp",
+  "type": "module",
+  "scripts": { "start": "node index.js" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}
+```
+
+Pour récupérer le token d'un user abonné :
+```bash
+curl -s -X POST http://localhost:8000/api/auth/login   -H "Content-Type: application/json"   -d '{"email":"test@example.com","password":"Test123!"}' | jq -r '.token'
+```
+
+`.env`
+```env
+CINEMAP_JWT_TOKEN=eyJ...
+```
+
+`index.js` — le serveur complet
+```js
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+
+const BASE_URL = "http://localhost:8000";
+const JWT_TOKEN = process.env.CINEMAP_JWT_TOKEN; // token d'un user abonné
+
+const server = new McpServer({ name: "cinemap", version: "1.0.0" });
+
+// Outil 1 — liste tous les films
+server.tool("list_films", "Retourne la liste de tous les films CineMap", {}, async () => {
+    const res = await fetch(`${BASE_URL}/api/films`);
+    const data = await res.json();
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+});
+
+// Outil 2 — localisations d'un film
+server.tool(
+    "get_locations_for_film",
+    "Retourne les emplacements de tournage d'un film CineMap",
+    { film_id: z.number().describe("ID du film") },
+    async ({ film_id }) => {
+        const res = await fetch(`${BASE_URL}/api/films/${film_id}/locations`, {
+            headers: { Authorization: `Bearer ${JWT_TOKEN}` },
+        });
+        const data = await res.json();
+        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    }
+);
+
+const transport = new StdioServerTransport();
+await server.connect(transport);
+```
+
+### `api.php`
+
+> `list_films` appelle une route publique à créer — `get_locations_for_film` réutilise la route JWT de l'étape 8.
+
+Dans `cinemap-app/routes/api.php`, ajouter une route publique (hors du groupe middleware(`auth:api`)) :
+```php
+Route::get('/films', [FilmApiController::class, 'index']);
+```
+
+dans `cinemap-app/app/Http/Controllers/FilmApiController.php`, ajouter une méthode index :
+```php
+public function index()
+{
+    return response()->json(
+        Film::query()->orderBy('name')->get(['id', 'name', 'producer', 'release_year'])
+    );
+}
+```
+
+`api.php` final :
+```php
+Route::get('/films', [FilmApiController::class, 'index']);           // public
+Route::post('/auth/login', [ApiAuthController::class, 'login']);     // public
+
+Route::middleware('auth:api')->group(function () {
+    Route::get('/films/{film}/locations', [FilmApiController::class, 'locations']);
+});
+```
+
+### Transport : stdio vs HTTP
+
+| Mode | Quand l'utiliser |
+|---|---|
+| stdio | Client local (Claude Desktop, Claude Code) — le client lance le process |
+| HTTP/SSE | Serveur distant, API partagée |
+
+Pour un TP en local → stdio (plus simple, pas besoin d'un port ouvert).
+
+### Configurer Claude pour utiliser ton serveur
+
+[PDF : Installation Claude Code sur Linux Mint](https://tools.ruggi.site/ClaudeCode_LinuxMint_Community_Guide.pdf)
+
+Sur **Linux Mint**, le fichier de config Claude code est :
+
+```
+~/.config/Claude/settings.json
+```
+
+Si le fichier n'existe pas, le créer :
+
+```bash
+mkdir -p ~/.config/Claude
+touch ~/.config/Claude/settings.json
+```
+
+Contenu du fichier :
+
+```json
+{
+  "mcpServers": {
+    "cinemap": {
+      "command": "node",
+      "args": ["/chemin/absolu/vers/cinemap-mcp/index.js"],
+      "env": {
+        "CINEMAP_JWT_TOKEN": "eyJ..."
+      }
+    }
+  }
+}
+
+
+{
+  "mcpServers": {
+    "cinemap": {
+      "command": "node",
+      "args": ["~/Documents/B3dev/Php/B3dev-TP_framework_php/cinemap-mcp/index.js"],
+      "env": {
+        "CINEMAP_JWT_TOKEN": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjgwMDAvYXBpL2F1dGgvbG9naW4iLCJpYXQiOjE3NzY5MzE1NzAsImV4cCI6MTc3NjkzNTE3MCwibmJmIjoxNzc2OTMxNTcwLCJqdGkiOiJCY0FpTkhTMGVjc3g4TmJ4Iiwic3ViIjoiMiIsInBydiI6IjIzYmQ1Yzg5NDlmNjAwYWRiMzllNzAxYzQwMDg3MmRiN2E1OTc2ZjcifQ.aqfx-IcazHUfJyRQ-widelhEebOc1lZawGnlD4lc4Fc"
+      }
+    }
+  }
+}
+```
+
+Puis **redémarrer Claude** pour que la config soit prise en compte. Un icône de prise apparaît dans l'interface si le serveur MCP est bien détecté.
+
+> **Si node est installé via `nvm`**, Claude ne charge pas le `.bashrc` et ne trouve pas `node` dans le PATH. Utiliser le chemin absolu :
+> ```bash
+> which node   # ex : /home/user/.nvm/versions/node/v20.19.0/bin/node
+> ```
+> Puis dans la config :
+> ```json
+> "command": "/home/user/.nvm/versions/node/v20.19.0/bin/node"
+> ```
+
+### Installer claude code (linux)
+
+```bash
+curl -fsSL https://claude.ai/install.sh | bash
+
+Setting up Claude Code...
+
+✔ Claude Code successfully installed!        
+
+  Version: 2.1.118
+
+  Location: ~/.local/bin/claude
+
+
+  Next: Run claude --help to get started
+
+✅ Installation complete!
+
+```
+
+Pour le lancer:
+```bash
+claude
+```
+
+### Tester : demander à Claude "liste les films de CineMap"
+
+Dans Claude Code, taper :
+- `List all films`
+- ou : `Get locations for film 1`
+
+Claude va appeler le serveur MCP
+L'API Laravel sera utilisée
+
+```bash
+❯ List all films 
+
+● Bash(curl -s http://localhost:8000/api/films | python3 -m json.tool)
+  ⎿  [
+         {
+             "id": 1,
+     … +11 lines (ctrl+o to expand)
+
+● ┌─────┬────────────┬───────────────────┬──────────────┐
+  │ ID  │   Title    │     Producer      │ Release Year │
+  ├─────┼────────────┼───────────────────┼──────────────┤
+  │ 1   │ Inception  │ Christopher Nolan │ 2010         │
+  ├─────┼────────────┼───────────────────┼──────────────┤
+  │ 2   │ The Matrix │ The Wachowskis    │ 1999         │
+  └─────┴────────────┴───────────────────┴──────────────┘
+
+  2 films total.
+
+❯ Get locations for film 1
+
+● Bash(TOKEN=$(grep CINEMAP_JWT_TOKEN /home/rusty/Documents/B3dev/Php/B3dev-TP_framework_php/cinemap-mcp/.env | cut -d= -f2) && curl -s http://localhost:8000/api/films…)
+  ⎿  {
+         "film": {
+             "id": 1,
+     … +16 lines (ctrl+o to expand)
+
+● Inception — Filming locations:
+
+  ┌─────┬──────────────┬──────────┬─────────┬─────────┐
+  │ ID  │     Name     │   City   │ Country │ Upvotes │
+  ├─────┼──────────────┼──────────┼─────────┼─────────┤
+  │ 1   │ Central Park │ New York │ USA     │ 0       │
+  └─────┴──────────────┴──────────┴─────────┴─────────┘
+
+❯ Get location for Matrix
+
+● Bash(TOKEN=$(grep CINEMAP_JWT_TOKEN /home/rusty/Documents/B3dev/Php/B3dev-TP_framework_php/cinemap-mcp/.env | cut -d= -f2) && curl -s http://localhost:8000/api/films…)
+  ⎿  {
+         "film": {
+             "id": 2,
+     … +16 lines (ctrl+o to expand)
+
+● The Matrix — Filming locations:
+
+  ┌─────┬──────────────┬───────┬─────────┬─────────┐
+  │ ID  │     Name     │ City  │ Country │ Upvotes │
+  ├─────┼──────────────┼───────┼─────────┼─────────┤
+  │ 2   │ Eiffel Tower │ Paris │ France  │ 0       │
+  └─────┴──────────────┴───────┴─────────┴─────────┘
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯  
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ? for shortcuts
+```
 
 ---
 
-## En plus
+## Étape 10 — Tests PHPunit
 
 - Tests
-- github actions
-   - Deploiement auto env test
-   - cicd
+
+---
+
+## Étape 11 — CI/CD et déploiement automatique
+
+**Objectif :** déployer automatiquement l'application sur le VPS de test à chaque push sur la branche `staging`, après validation du pipeline CI.
+
+### Architecture
+
+```
+push → staging
+    ├── CI (Pint + Pest)
+    │       ↓ si OK
+    └── Deploy (SSH → VPS)
+            ├── git pull
+            ├── docker-compose build cinemap
+            └── docker-compose up -d cinemap
+```
+
+L'app sera accessible sur : `http://78.138.58.95/cinemap/`
+
+---
+
+### Partie A — Dockerfile Laravel
+
+Créer `cinemap-app/deployment/Dockerfile` :
+
+```dockerfile
+FROM php:8.3-fpm-alpine
+
+# Dépendances système
+RUN apk add --no-cache \
+    nginx supervisor sqlite sqlite-dev \
+    libzip-dev icu-dev oniguruma-dev \
+    nodejs npm
+
+# Extensions PHP
+RUN docker-php-ext-install pdo pdo_sqlite bcmath zip mbstring opcache intl
+
+# Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+# Dépendances PHP (layer séparé pour le cache Docker)
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --optimize-autoloader --no-scripts --no-autoloader
+
+# Dépendances Node (layer séparé)
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Code source
+COPY . .
+
+# Finalisation Composer + build assets Vite
+RUN composer dump-autoload --optimize \
+    && npm run build \
+    && rm -rf node_modules
+
+# Répertoires et permissions
+RUN mkdir -p storage/logs storage/framework/{cache,sessions,views} bootstrap/cache database \
+    && touch database/database.sqlite \
+    && chmod -R 775 storage bootstrap/cache database \
+    && chown -R www-data:www-data storage bootstrap/cache database
+
+# Config serveur
+COPY deployment/nginx.conf /etc/nginx/nginx.conf
+COPY deployment/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY deployment/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 80
+ENTRYPOINT ["/entrypoint.sh"]
+```
+
+---
+
+### Partie B — nginx (dans le container)
+
+Créer `cinemap-app/deployment/nginx.conf` :
+
+```nginx
+worker_processes auto;
+error_log /var/log/nginx/error.log warn;
+pid /tmp/nginx.pid;
+
+events { worker_connections 1024; }
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    server {
+        listen 80;
+        server_name _;
+        root /var/www/html/public;
+        index index.php;
+        charset utf-8;
+
+        location / {
+            try_files $uri $uri/ /index.php?$query_string;
+        }
+
+        location = /favicon.ico { log_not_found off; access_log off; }
+        location = /robots.txt  { log_not_found off; access_log off; }
+
+        location ~ \.php$ {
+            fastcgi_pass 127.0.0.1:9000;
+            fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+            include fastcgi_params;
+        }
+
+        location ~ /\.ht { deny all; }
+    }
+}
+```
+
+---
+
+### Partie C — supervisord (nginx + php-fpm dans le même container)
+
+Créer `cinemap-app/deployment/supervisord.conf` :
+
+```ini
+[supervisord]
+nodaemon=true
+user=root
+logfile=/dev/null
+logfile_maxbytes=0
+
+[program:php-fpm]
+command=php-fpm -F
+autostart=true
+autorestart=true
+priority=5
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+
+[program:nginx]
+command=nginx -g "daemon off;"
+autostart=true
+autorestart=true
+priority=10
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+```
+
+---
+
+### Partie D — entrypoint
+
+Créer `cinemap-app/deployment/entrypoint.sh` :
+
+```sh
+#!/bin/sh
+set -e
+
+# Créer le fichier SQLite si absent (premier démarrage)
+mkdir -p /var/www/html/database
+touch /var/www/html/database/database.sqlite
+chown -R www-data:www-data /var/www/html/database /var/www/html/storage /var/www/html/bootstrap/cache
+chmod -R 775 /var/www/html/database /var/www/html/storage /var/www/html/bootstrap/cache
+
+# Migrations (--force requis hors env=local)
+php artisan migrate --force
+
+# Cache config + vues (pas route:cache — routes avec closures incompatibles)
+php artisan config:cache
+php artisan view:cache
+
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+```
+
+> `route:cache` est intentionnellement absent : les routes avec des closures (ex. `/dashboard`, `/`) le font échouer.
+
+---
+
+### Partie E — Configuration VPS (une seule fois, manuelle)
+
+Ces étapes sont faites **une fois** en SSH sur le VPS, pas automatisées.
+
+#### 1. Ajouter le service dans `/var/www/docker-compose.yml`
+
+```yaml
+cinemap:
+  build:
+    context: ./B3dev-TP_framework_php/cinemap-app
+    dockerfile: deployment/Dockerfile
+  container_name: cinemap
+  ports:
+    - "3012:80"
+  volumes:
+    - ./data/cinemap:/var/www/html/database   # persistance SQLite entre les déploiements
+  env_file:
+    - ./B3dev-TP_framework_php/cinemap-app/.env
+  restart: unless-stopped
+```
+
+#### 2. Ajouter le bloc nginx dans `/etc/nginx/sites-enabled/vps` et `/etc/nginx/sites-avaliable/vps`
+
+```nginx
+location /cinemap/ {
+    rewrite ^/cinemap/(.*)$ /$1 break;
+    proxy_pass http://127.0.0.1:3012;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Recharger nginx :
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+#### 3. Créer le `.env` sur le VPS
+
+Créer `/var/www/B3dev-TP_framework_php/cinemap-app/.env` :
+
+```env
+APP_NAME=CineMap
+APP_ENV=staging
+APP_KEY=base64:...        # générer avec : php artisan key:generate --show
+APP_DEBUG=false
+APP_URL=http://78.138.58.95/cinemap
+ASSET_URL=http://78.138.58.95/cinemap
+
+DB_CONNECTION=sqlite
+DB_DATABASE=/var/www/html/database/database.sqlite
+
+SESSION_DRIVER=database
+SESSION_LIFETIME=120
+SESSION_PATH=/cinemap
+QUEUE_CONNECTION=database
+CACHE_STORE=database
+
+STRIPE_KEY=pk_test_...
+STRIPE_SECRET=sk_test_...
+STRIPE_PRICE_ID=price_...
+
+DISCORD_CLIENT_ID=...
+DISCORD_CLIENT_SECRET=...
+DISCORD_REDIRECT_URI=http://78.138.58.95/cinemap/auth/discord/callback
+
+JWT_SECRET=...            # générer avec : php artisan jwt:secret --show
+```
+
+> `APP_URL` et `ASSET_URL` avec le préfixe `/cinemap` sont indispensables : sans eux, les assets Vite et les redirections Laravel pointent vers la racine du VPS.
+
+#### 4. Seeder (premier déploiement uniquement)
+
+```bash
+docker exec cinemap php artisan migrate:fresh --seed
+```
+
+---
+
+### Partie F — GitHub Actions
+
+#### `ci.yml` — s'exécute sur toutes les branches
+
+Créer `.github/workflows/ci.yml` :
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches-ignore:
+      - staging
+  pull_request:
+    branches: [main, staging, dev]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (Pint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_sqlite, bcmath, mbstring, zip, intl
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --optimize-autoloader
+        working-directory: cinemap-app
+      - run: ./vendor/bin/pint --test
+        working-directory: cinemap-app
+
+  tests:
+    name: Tests (Pest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_sqlite, bcmath, mbstring, zip, intl
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --optimize-autoloader
+        working-directory: cinemap-app
+      - run: cp .env.example .env
+        working-directory: cinemap-app
+      - run: php artisan key:generate
+        working-directory: cinemap-app
+      - run: touch database/database.sqlite
+        working-directory: cinemap-app
+      - run: php artisan migrate --force
+        working-directory: cinemap-app
+      - run: php artisan test
+        working-directory: cinemap-app
+```
+
+#### `deploy-staging.yml` — s'exécute uniquement sur `staging`
+
+Créer `.github/workflows/deploy-staging.yml` :
+
+```yaml
+name: Deploy to VPS (staging)
+
+on:
+  push:
+    branches: [staging]
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint (Pint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_sqlite, bcmath, mbstring, zip, intl
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --optimize-autoloader
+        working-directory: cinemap-app
+      - run: ./vendor/bin/pint --test
+        working-directory: cinemap-app
+
+  tests:
+    name: Tests (Pest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_sqlite, bcmath, mbstring, zip, intl
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --optimize-autoloader
+        working-directory: cinemap-app
+      - run: cp .env.example .env
+        working-directory: cinemap-app
+      - run: php artisan key:generate
+        working-directory: cinemap-app
+      - run: touch database/database.sqlite
+        working-directory: cinemap-app
+      - run: php artisan migrate --force
+        working-directory: cinemap-app
+      - run: php artisan test
+        working-directory: cinemap-app
+
+  deploy:
+    name: Déploiement CineMap — staging
+    runs-on: ubuntu-latest
+    needs: [lint, tests]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          command_timeout: 30m
+          script: |
+            set -e
+            echo "Déploiement CineMap — staging"
+
+            REPO_DIR="/var/www/B3dev-TP_framework_php"
+            COMPOSE_FILE="/var/www/docker-compose.yml"
+
+            # Cloner ou mettre à jour le repo
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              git clone https://github.com/${{ github.repository }}.git "$REPO_DIR"
+              git -C "$REPO_DIR" checkout staging
+            else
+              git -C "$REPO_DIR" fetch origin staging
+              git -C "$REPO_DIR" reset --hard origin/staging
+            fi
+
+            # Vérifier que le .env existe
+            ENV_FILE="$REPO_DIR/cinemap-app/.env"
+            if [ ! -f "$ENV_FILE" ]; then
+              echo "Fichier .env manquant : $ENV_FILE"
+              echo "Créez-le manuellement sur le VPS avant de déployer."
+              exit 1
+            fi
+
+            # Rebuild et restart
+            docker-compose -f "$COMPOSE_FILE" build cinemap
+            docker-compose -f "$COMPOSE_FILE" up -d --remove-orphans cinemap
+            docker image prune -f
+
+            # Vérification
+            docker ps --filter "name=cinemap" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            echo "Déploiement terminé : http://78.138.58.95/cinemap/"
+```
+
+---
+
+### Partie G — GitHub Secrets
+
+Dans **Settings → Secrets and variables → Actions** du repo GitHub, ajouter :
+
+| Secret | Valeur |
+|---|---|
+| `VPS_HOST` | `78.138.58.95` |
+| `VPS_USER` | `rusty` |
+| `VPS_SSH_KEY` | contenu de la clé privée SSH (`~/.ssh/id_rsa`) |
+
+> Pour générer une clé SSH dédiée : `ssh-keygen -t ed25519 -C "github-actions"`, puis ajouter la clé **publique** dans `~/.ssh/authorized_keys` sur le VPS.
+
+---
+
+### Checklist
+
+- [ ] Fichiers `deployment/` créés dans `cinemap-app/`
+- [ ] Service `cinemap` ajouté dans `/var/www/docker-compose.yml`
+- [ ] Bloc nginx `/cinemap/` ajouté et nginx rechargé
+- [ ] `.env` créé sur le VPS avec `APP_URL` et `ASSET_URL` corrects
+- [ ] GitHub Secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` configurés
+- [ ] Push sur `staging` → pipeline CI vert → déploiement automatique
+- [ ] `http://78.138.58.95/cinemap/` accessible
+
+
 
 
