@@ -1568,19 +1568,21 @@ Route::middleware('auth:api')->group(function () {
 
 Pour un TP en local → stdio (plus simple, pas besoin d'un port ouvert).
 
-### Configurer Claude Desktop pour utiliser ton serveur
+### Configurer Claude pour utiliser ton serveur
 
-Sur **Linux Mint**, le fichier de config Claude Desktop est :
+[PDF : Installation Claude Code sur Linux Mint](https://tools.ruggi.site/ClaudeCode_LinuxMint_Community_Guide.pdf)
+
+Sur **Linux Mint**, le fichier de config Claude code est :
 
 ```
-~/.config/Claude/claude_desktop_config.json
+~/.config/Claude/settings.json
 ```
 
 Si le fichier n'existe pas, le créer :
 
 ```bash
 mkdir -p ~/.config/Claude
-touch ~/.config/Claude/claude_desktop_config.json
+touch ~/.config/Claude/settings.json
 ```
 
 Contenu du fichier :
@@ -1597,28 +1599,122 @@ Contenu du fichier :
     }
   }
 }
+
+
+{
+  "mcpServers": {
+    "cinemap": {
+      "command": "node",
+      "args": ["~/Documents/B3dev/Php/B3dev-TP_framework_php/cinemap-mcp/index.js"],
+      "env": {
+        "CINEMAP_JWT_TOKEN": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjgwMDAvYXBpL2F1dGgvbG9naW4iLCJpYXQiOjE3NzY5MzE1NzAsImV4cCI6MTc3NjkzNTE3MCwibmJmIjoxNzc2OTMxNTcwLCJqdGkiOiJCY0FpTkhTMGVjc3g4TmJ4Iiwic3ViIjoiMiIsInBydiI6IjIzYmQ1Yzg5NDlmNjAwYWRiMzllNzAxYzQwMDg3MmRiN2E1OTc2ZjcifQ.aqfx-IcazHUfJyRQ-widelhEebOc1lZawGnlD4lc4Fc"
+      }
+    }
+  }
+}
 ```
 
-> Remplacer le chemin par le chemin réel, ex. `/home/rusty/Documents/B3dev/Php/B3dev-TP_framework_php/cinemap-mcp/index.js`
+Puis **redémarrer Claude** pour que la config soit prise en compte. Un icône de prise apparaît dans l'interface si le serveur MCP est bien détecté.
 
-Puis **redémarrer Claude Desktop** pour que la config soit prise en compte. Un icône de prise apparaît dans l'interface si le serveur MCP est bien détecté.
-
-> **Si node est installé via `nvm`**, Claude Desktop ne charge pas le `.bashrc` et ne trouve pas `node` dans le PATH. Utiliser le chemin absolu :
+> **Si node est installé via `nvm`**, Claude ne charge pas le `.bashrc` et ne trouve pas `node` dans le PATH. Utiliser le chemin absolu :
 > ```bash
-> which node   # ex : /home/rusty/.nvm/versions/node/v20.19.0/bin/node
+> which node   # ex : /home/user/.nvm/versions/node/v20.19.0/bin/node
 > ```
 > Puis dans la config :
 > ```json
-> "command": "/home/rusty/.nvm/versions/node/v20.19.0/bin/node"
+> "command": "/home/user/.nvm/versions/node/v20.19.0/bin/node"
 > ```
 
-### Ce qu'il te reste à faire
+### Installer claude code (linux)
 
-- Créer une route publique GET /api/films dans routes/api.php (pour list_films)
-- Créer le dossier cinemap-mcp/ avec les deux fichiers ci-dessus
-npm install dans ce dossier
-- Configurer le client MCP (Claude Desktop ou Claude Code)
-- Tester : demander à Claude "liste les films de CineMap"
+```bash
+curl -fsSL https://claude.ai/install.sh | bash
+
+Setting up Claude Code...
+
+✔ Claude Code successfully installed!        
+
+  Version: 2.1.118
+
+  Location: ~/.local/bin/claude
+
+
+  Next: Run claude --help to get started
+
+✅ Installation complete!
+
+```
+
+Pour le lancer:
+```bash
+claude
+```
+
+### Tester : demander à Claude "liste les films de CineMap"
+
+Dans Claude Code, taper :
+- `List all films`
+- ou : `Get locations for film 1`
+
+Claude va appeler le serveur MCP
+L'API Laravel sera utilisée
+
+```bash
+❯ List all films 
+
+● Bash(curl -s http://localhost:8000/api/films | python3 -m json.tool)
+  ⎿  [
+         {
+             "id": 1,
+     … +11 lines (ctrl+o to expand)
+
+● ┌─────┬────────────┬───────────────────┬──────────────┐
+  │ ID  │   Title    │     Producer      │ Release Year │
+  ├─────┼────────────┼───────────────────┼──────────────┤
+  │ 1   │ Inception  │ Christopher Nolan │ 2010         │
+  ├─────┼────────────┼───────────────────┼──────────────┤
+  │ 2   │ The Matrix │ The Wachowskis    │ 1999         │
+  └─────┴────────────┴───────────────────┴──────────────┘
+
+  2 films total.
+
+❯ Get locations for film 1
+
+● Bash(TOKEN=$(grep CINEMAP_JWT_TOKEN /home/rusty/Documents/B3dev/Php/B3dev-TP_framework_php/cinemap-mcp/.env | cut -d= -f2) && curl -s http://localhost:8000/api/films…)
+  ⎿  {
+         "film": {
+             "id": 1,
+     … +16 lines (ctrl+o to expand)
+
+● Inception — Filming locations:
+
+  ┌─────┬──────────────┬──────────┬─────────┬─────────┐
+  │ ID  │     Name     │   City   │ Country │ Upvotes │
+  ├─────┼──────────────┼──────────┼─────────┼─────────┤
+  │ 1   │ Central Park │ New York │ USA     │ 0       │
+  └─────┴──────────────┴──────────┴─────────┴─────────┘
+
+❯ Get location for Matrix
+
+● Bash(TOKEN=$(grep CINEMAP_JWT_TOKEN /home/rusty/Documents/B3dev/Php/B3dev-TP_framework_php/cinemap-mcp/.env | cut -d= -f2) && curl -s http://localhost:8000/api/films…)
+  ⎿  {
+         "film": {
+             "id": 2,
+     … +16 lines (ctrl+o to expand)
+
+● The Matrix — Filming locations:
+
+  ┌─────┬──────────────┬───────┬─────────┬─────────┐
+  │ ID  │     Name     │ City  │ Country │ Upvotes │
+  ├─────┼──────────────┼───────┼─────────┼─────────┤
+  │ 2   │ Eiffel Tower │ Paris │ France  │ 0       │
+  └─────┴──────────────┴───────┴─────────┴─────────┘
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯  
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ? for shortcuts
+```
 
 ---
 
