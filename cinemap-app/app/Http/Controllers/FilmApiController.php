@@ -6,7 +6,7 @@ use App\Models\Film;
 
 class FilmApiController extends Controller
 {
-    public function locations(Film $film)
+    public function localisations(Film $film)
     {
         return response()->json([
             'film' => $film->only(['id', 'name', 'producer', 'release_year', 'synopsis']),

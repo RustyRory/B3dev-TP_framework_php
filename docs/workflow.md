@@ -1169,7 +1169,7 @@ Route::get('/auth/discord/callback', [SocialiteController::class, 'handleDiscord
 
 ```
 POST /api/auth/login       → retourne un token JWT
-GET  /api/films/{film}/locations   Authorization: Bearer <token>
+GET  /api/films/{film}/localisations   Authorization: Bearer <token>
 ```
 
 ---
@@ -1342,7 +1342,7 @@ public function login(Request $request)
 ```php
 use App\Models\Film;
 
-public function locations(Film $film)
+public function localisations(Film $film)
 {
     return response()->json([
         'film'          => $film->only(['id', 'name', 'producer', 'release_year', 'synopsis']),
@@ -1378,7 +1378,7 @@ use App\Http\Controllers\FilmApiController;
 Route::post('/auth/login', [ApiAuthController::class, 'login']);
 
 Route::middleware('auth:api')->group(function () {
-    Route::get('/films/{film}/locations', [FilmApiController::class, 'locations']);
+    Route::get('/films/{film}/localisations', [FilmApiController::class, 'localisations']);
 });
 ```
 
@@ -1392,7 +1392,7 @@ curl -s -X POST http://localhost:8000/api/auth/login \
   -d '{"email":"ton@email.com","password":"motdepasse"}' | jq .
 
 # Puis avec le token :
-curl -s http://localhost:8000/api/films/1/locations \
+curl -s http://localhost:8000/api/films/1/localisations \
   -H "Authorization: Bearer <token>" | jq .
 ```
 ---
@@ -1425,7 +1425,7 @@ Le serveur MCP expose des tools (outils). L'IA décide quand les appeler en fonc
 
 | Primitive | Rôle | Exemple
 |---|---|
-| Tools | Actions que l'IA peut déclencher | `list_films`, `get_locations_for_film` |
+| Tools | Actions que l'IA peut déclencher | `list_films`, `get_localisations_for_film` |
 | Resources | Données que l'IA peut lire | Un fichier, une page web |
 | Prompts | Templates de prompts réutilisables | — |
 Pour le TP, besoin que des Tools.
@@ -1453,14 +1453,14 @@ Exemple de dialogue IA :
 | Outil | Description |
 |---|---|
 | `list_films` | Retourne la liste de tous les films |
-| `get_locations_for_film` | Retourne les emplacements d'un film donné |
+| `get_localisations_for_film` | Retourne les emplacements d'un film donné |
 
 #### Ce qu'il faut faire
 
 **script Node.js** qui appelle ton API Laravel existante (étape 8).
 
 On a déjà :
-- GET /api/films/{film}/locations (protégé JWT)
+- GET /api/films/{film}/localisations (protégé JWT)
 - Une DB avec des films et des localisations
 Il faut un pont MCP → API.
 
@@ -1514,11 +1514,11 @@ server.tool("list_films", "Retourne la liste de tous les films CineMap", {}, asy
 
 // Outil 2 — localisations d'un film
 server.tool(
-    "get_locations_for_film",
+    "get_localisations_for_film",
     "Retourne les emplacements de tournage d'un film CineMap",
     { film_id: z.number().describe("ID du film") },
     async ({ film_id }) => {
-        const res = await fetch(`${BASE_URL}/api/films/${film_id}/locations`, {
+        const res = await fetch(`${BASE_URL}/api/films/${film_id}/localisations`, {
             headers: { Authorization: `Bearer ${JWT_TOKEN}` },
         });
         const data = await res.json();
@@ -1532,7 +1532,7 @@ await server.connect(transport);
 
 ### `api.php`
 
-> `list_films` appelle une route publique à créer — `get_locations_for_film` réutilise la route JWT de l'étape 8.
+> `list_films` appelle une route publique à créer — `get_localisations_for_film` réutilise la route JWT de l'étape 8.
 
 Dans `cinemap-app/routes/api.php`, ajouter une route publique (hors du groupe middleware(`auth:api`)) :
 ```php
@@ -1555,7 +1555,7 @@ Route::get('/films', [FilmApiController::class, 'index']);           // public
 Route::post('/auth/login', [ApiAuthController::class, 'login']);     // public
 
 Route::middleware('auth:api')->group(function () {
-    Route::get('/films/{film}/locations', [FilmApiController::class, 'locations']);
+    Route::get('/films/{film}/localisations', [FilmApiController::class, 'localisations']);
 });
 ```
 
@@ -1636,7 +1636,7 @@ Setting up Claude Code...
 
   Version: 2.1.118
 
-  Location: ~/.local/bin/claude
+  localisation: ~/.local/bin/claude
 
 
   Next: Run claude --help to get started
@@ -1654,7 +1654,7 @@ claude
 
 Dans Claude Code, taper :
 - `List all films`
-- ou : `Get locations for film 1`
+- ou : `Get localisations for film 1`
 
 Claude va appeler le serveur MCP
 L'API Laravel sera utilisée
@@ -1678,7 +1678,7 @@ L'API Laravel sera utilisée
 
   2 films total.
 
-❯ Get locations for film 1
+❯ Get localisations for film 1
 
 ● Bash(TOKEN=$(grep CINEMAP_JWT_TOKEN /home/rusty/Documents/B3dev/Php/B3dev-TP_framework_php/cinemap-mcp/.env | cut -d= -f2) && curl -s http://localhost:8000/api/films…)
   ⎿  {
@@ -1686,7 +1686,7 @@ L'API Laravel sera utilisée
              "id": 1,
      … +16 lines (ctrl+o to expand)
 
-● Inception — Filming locations:
+● Inception — Filming localisations:
 
   ┌─────┬──────────────┬──────────┬─────────┬─────────┐
   │ ID  │     Name     │   City   │ Country │ Upvotes │
@@ -1694,7 +1694,7 @@ L'API Laravel sera utilisée
   │ 1   │ Central Park │ New York │ USA     │ 0       │
   └─────┴──────────────┴──────────┴─────────┴─────────┘
 
-❯ Get location for Matrix
+❯ Get localisation for Matrix
 
 ● Bash(TOKEN=$(grep CINEMAP_JWT_TOKEN /home/rusty/Documents/B3dev/Php/B3dev-TP_framework_php/cinemap-mcp/.env | cut -d= -f2) && curl -s http://localhost:8000/api/films…)
   ⎿  {
@@ -1702,7 +1702,7 @@ L'API Laravel sera utilisée
              "id": 2,
      … +16 lines (ctrl+o to expand)
 
-● The Matrix — Filming locations:
+● The Matrix — Filming localisations:
 
   ┌─────┬──────────────┬───────┬─────────┬─────────┐
   │ ID  │     Name     │ City  │ Country │ Upvotes │
@@ -1720,15 +1720,396 @@ L'API Laravel sera utilisée
 
 ## Étape 10 — Tests PHPunit
 
-- Tests
+### C'est quoi ?
+
+**PHPUnit** est le framework de test standard en PHP. **Pest** est une surcouche syntaxique installée par défaut avec Laravel Breeze — elle génère des tests plus lisibles tout en exécutant PHPUnit sous le capot.
+
+Les tests s'assurent que les routes, controllers et règles métier fonctionnent comme prévu, notamment après un refactoring.
+
+### Installation de Pest
+
+**Dans ce projet, Pest est déjà installé** (ajouté automatiquement par Breeze). Pour le vérifier :
+
+```bash
+cat composer.json | grep pest
+# "pestphp/pest": "^4.x",
+# "pestphp/pest-plugin-laravel": "^4.x"
+```
+
+Si Pest n'est **pas** présent (projet sans Breeze), l'installer manuellement :
+
+```bash
+composer require pestphp/pest pestphp/pest-plugin-laravel --dev --with-all-dependencies
+./vendor/bin/pest --init
+```
+
+La commande `--init` génère `tests/Pest.php` (le fichier de configuration global).
+
+> Pest et PHPUnit coexistent : les tests existants au format PHPUnit (`extends TestCase`) continuent de fonctionner sans modification.
+
+### Architecture
+
+```
+tests/
+├── Feature/          ← tests d'intégration (HTTP, base de données)
+│   ├── Auth/         ← tests Breeze (déjà présents)
+│   └── Api/          ← tests à écrire pour l'API JSON
+└── Unit/             ← tests unitaires (logique pure, sans HTTP)
+```
+
+| Type | Ce qu'il teste | Accès DB | Accès HTTP |
+|---|---|---|---|
+| Unit | Une méthode isolée | ✗ | ✗ |
+| Feature | Une route complète | ✓ | ✓ |
+
+Pour le TP : uniquement des tests **Feature** sur l'API.
+
+### Configuration (déjà en place)
+
+`phpunit.xml` configure l'environnement de test :
+
+```xml
+<env name="DB_CONNECTION" value="sqlite"/>
+<env name="DB_DATABASE" value=":memory:"/>
+<env name="QUEUE_CONNECTION" value="sync"/>
+```
+
+- **SQLite in-memory** : base isolée, recréée à chaque test, aucun impact sur la DB de dev
+- **Queue sync** : les jobs sont exécutés immédiatement (pas de worker nécessaire)
+
+`tests/Pest.php` applique automatiquement `RefreshDatabase` à tous les tests Feature :
+
+```php
+pest()->extend(TestCase::class)
+    ->use(RefreshDatabase::class)
+    ->in('Feature');
+```
+
+`RefreshDatabase` recrée les migrations et relance les seeders entre chaque test — chaque test part d'une base propre.
+
+### Les tests à écrire
+
+Trois routes API à couvrir :
+
+| Route | Cas à tester |
+|---|---|
+| `GET /api/films` | 200 + liste ordonnée + bons champs |
+| `POST /api/auth/login` | 401 mauvais mdp, 403 non abonné, 200 + token |
+| `GET /api/films/{id}/localisations` | 401 sans token, 200 avec token valide |
+
+### Créer les fichiers de test
+
+```bash
+php artisan make:test Api/FilmApiTest
+php artisan make:test Api/ApiAuthTest
+php artisan make:test Api/FilmLocalisationsApiTest
+```
+
+### `tests/Feature/Api/FilmApiTest.php`
+
+```php
+<?php
+
+use App\Models\Film;
+
+test('GET /api/films retourne 200', function () {
+    Film::factory()->create();
+
+    $this->getJson('/api/films')->assertOk();
+});
+
+test('GET /api/films retourne les films triés par nom', function () {
+    Film::factory()->create(['name' => 'Zorro']);
+    Film::factory()->create(['name' => 'Avatar']);
+
+    $response = $this->getJson('/api/films')->assertOk();
+
+    expect($response->json('0.name'))->toBe('Avatar');
+});
+
+test('GET /api/films retourne les bons champs', function () {
+    Film::factory()->create();
+
+    $this->getJson('/api/films')
+        ->assertOk()
+        ->assertJsonStructure(['*' => ['id', 'name', 'producer', 'release_year']]);
+});
+```
+
+### `tests/Feature/Api/ApiAuthTest.php`
+
+```php
+<?php
+
+use App\Models\User;
+
+test('login retourne 401 si les identifiants sont invalides', function () {
+    User::factory()->create(['email' => 'test@example.com']);
+
+    $this->postJson('/api/auth/login', [
+        'email'    => 'test@example.com',
+        'password' => 'mauvais-mot-de-passe',
+    ])->assertStatus(401);
+});
+
+test('login retourne 403 si l\'utilisateur n\'est pas abonné', function () {
+    $user = User::factory()->create(['password' => bcrypt('Test123!')]);
+
+    $this->postJson('/api/auth/login', [
+        'email'    => $user->email,
+        'password' => 'Test123!',
+    ])->assertStatus(403);
+});
+
+test('login retourne un token si l\'utilisateur est abonné', function () {
+    $user = User::factory()->create(['password' => bcrypt('Test123!')]);
+
+    // Créer un abonnement actif directement en DB (pas d'appel Stripe)
+    $user->subscriptions()->create([
+        'type'          => 'default',
+        'stripe_id'     => 'sub_test_123',
+        'stripe_status' => 'active',
+        'stripe_price'  => 'price_test',
+        'quantity'      => 1,
+    ]);
+
+    $this->postJson('/api/auth/login', [
+        'email'    => $user->email,
+        'password' => 'Test123!',
+    ])->assertOk()->assertJsonStructure(['token']);
+});
+```
+
+> `$user->subscriptions()->create([...])` insère l'abonnement directement en base, sans passer par Stripe. La méthode `subscribed('default')` de Cashier vérifie uniquement le `stripe_status` en DB.
+
+### `tests/Feature/Api/FilmLocalisationsApiTest.php`
+
+```php
+<?php
+
+use App\Models\Film;
+use App\Models\User;
+
+test('GET /api/films/{film}/localisations retourne 401 sans token', function () {
+    $film = Film::factory()->create();
+
+    $this->getJson("/api/films/{$film->id}/localisations")
+        ->assertStatus(401);
+});
+
+test('GET /api/films/{film}/localisations retourne 200 avec un utilisateur authentifié', function () {
+    $user = User::factory()->create();
+    $film = Film::factory()->create();
+
+    $this->actingAs($user, 'api')
+        ->getJson("/api/films/{$film->id}/localisations")
+        ->assertOk()
+        ->assertJsonStructure(['film', 'localisations']);
+});
+```
+
+> `actingAs($user, 'api')` authentifie l'utilisateur sur le guard JWT sans générer de vrai token — c'est l'approche standard pour tester les routes protégées par JWT.
+
+### Lancer les tests
+
+```bash
+# Tous les tests
+php artisan test
+
+# Uniquement les tests Api
+php artisan test --filter Api
+
+# Un fichier précis
+php artisan test tests/Feature/Api/ApiAuthTest.php
+
+# Avec détail de chaque test
+php artisan test --verbose
+```
+
+Exemple de sortie :
+
+```
+   PASS  Tests\Feature\Api\FilmApiTest
+  ✓ GET /api/films retourne 200
+  ✓ GET /api/films retourne les films triés par nom
+  ✓ GET /api/films retourne les bons champs
+
+   PASS  Tests\Feature\Api\ApiAuthTest
+  ✓ login retourne 401 si les identifiants sont invalides
+  ✓ login retourne 403 si l'utilisateur n'est pas abonné
+  ✓ login retourne un token si l'utilisateur est abonné
+
+   PASS  Tests\Feature\Api\FilmlocalisationsApiTest
+  ✓ GET /api/films/{film}/localisations retourne 401 sans token
+  ✓ GET /api/films/{film}/localisations retourne 200 avec un utilisateur authentifié
+
+  Tests:    8 passed
+  Duration: 0.42s
+```
+
+### Erreurs fréquentes
+
+| Erreur | Cause | Solution |
+|---|---|---|
+| `Table 'subscriptions' doesn't exist` | Migrations Cashier non chargées en test | Vérifier que `DB_CONNECTION=sqlite` charge bien toutes les migrations |
+| `Class FilmFactory not found` | Factory manquante | Créer avec `php artisan make:factory FilmFactory --model=Film` |
+| `Unauthenticated` sur une route protégée | Guard `api` ignoré | Utiliser `actingAs($user, 'api')` et non `actingAs($user)` |
+| `Expected status 200 but received 500` | Exception non catchée | Ajouter `$this->withoutExceptionHandling()` pour voir l'erreur réelle |
 
 ---
 
-## Étape 11 — CI/CD et déploiement automatique
+## Étape 11 — CI CD 
 
 **Objectif :** déployer automatiquement l'application sur le VPS de test à chaque push sur la branche `staging`, après validation du pipeline CI.
 
 ### Architecture
+
+#### VPS
+
+Le VPS fourni par la formation est configuré en multi-app selon la structure suivante :
+
+`http://78.138.58.95/` → page d'accueil (navigation entre les apps)  
+`http://78.138.58.95/cinemap/` → ce projet  
+`http://78.138.58.95/<autreProjet>/` → autres projets B3
+
+Les autres projets sont déjà dockerisés et déployés. Au moment de la mise en place de CineMap, le VPS tourne avec les containers suivants :
+
+```
+CONTAINER       IMAGE               PORTS
+tp-vue-front    www-tp-vue-front    0.0.0.0:8080->80/tcp
+tp-vue-api      www-tp-vue-api      0.0.0.0:3003->3000/tcp
+sbv-api         www-sbv-api         0.0.0.0:3006->5000/tcp
+sbv-front       www-sbv-front       0.0.0.0:3007->3000/tcp
+lucky7-front    www-lucky7-front    0.0.0.0:3008->3000/tcp
+lucky7-back     www-lucky7-back     0.0.0.0:3009->4000/tcp
+clb-back        www-clb-back        0.0.0.0:3010->5000/tcp
+clb-front       www-clb-front       0.0.0.0:3011->3000/tcp
+mongo           mongo               27017/tcp (interne)
+```
+
+Le port `3012` est donc le prochain disponible pour CineMap. La convention de nommage est : image `www-<projet>`, container `<projet>` (ou `<projet>-<service>` si plusieurs containers par projet).
+
+##### Création utilisateur & SSH
+
+```bash
+# Sur le VPS en root
+adduser newuser
+usermod -aG sudo newuser
+
+# Sur le PC local
+ssh-keygen -t ed25519 -C "newuser-vps"
+ssh-copy-id newuser@IP_VPS
+ssh newuser@IP_VPS  # test sans mot de passe
+```
+
+##### Nginx
+
+```bash
+sudo apt update && sudo apt install nginx -y
+sudo systemctl enable nginx && sudo systemctl start nginx
+```
+
+##### Docker
+
+```bash
+sudo apt install -y docker.io docker-compose
+sudo systemctl enable docker && sudo systemctl start docker
+```
+
+##### MongoDB
+
+MongoDB tourne dans un conteneur Docker — pas d'installation sur le VPS.
+
+- Se connecte au backend via le nom de service `mongo` (réseau Docker interne)
+- Données persistées via volume `./data/mongo:/data/db`
+- Survit à un `docker-compose down`
+
+##### Structure des dossiers VPS
+
+```
+/var/www/
+│
+├── B3dev-TP_VUE/          ← dépôt cloné
+│   ├── express-project/
+│   └── my-project/
+│
+├── etc...
+│
+├── data/
+│   └── mongo/             ← volume MongoDB
+│
+├── home/                  ← page d'accueil HTML statique
+└── docker-compose.yml
+```
+
+##### Docker Compose
+
+Le fichier `/var/www/docker-compose.yml` centralise tous les projets du VPS. Il ne faut pas le recréer — uniquement y **ajouter** le service `cinemap`.
+
+Convention : on ne rebuild jamais tous les containers en même temps — toujours cibler le service concerné :
+
+```bash
+# Rebuild et restart d'un seul service
+docker-compose -f /var/www/docker-compose.yml build cinemap
+docker-compose -f /var/www/docker-compose.yml up -d cinemap
+```
+
+##### Nginx reverse proxy
+
+Fichier `/etc/nginx/sites-available/vps` :
+
+```nginx
+server {
+    listen 80;
+    server_name _;
+    root /var/www/home;
+    index index.html;
+
+    # API
+    localisation /B3dev-TP_VUE/api/ {
+        rewrite ^/B3dev-TP_VUE/api/(.*)$ /api/$1 break;
+        proxy_pass http://127.0.0.1:3003/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Socket.IO — pas de trailing slash → chemin complet préservé
+    localisation /B3dev-TP_VUE/socket.io/ {
+        proxy_pass http://127.0.0.1:3003;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Frontend — trailing slash → strip le préfixe
+    localisation /B3dev-TP_VUE/ {
+        proxy_pass http://127.0.0.1:8080/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    localisation / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+> **Règle Nginx** : `proxy_pass http://host/` (trailing slash) supprime le préfixe. `proxy_pass http://host` (sans) le conserve. Socket.IO nécessite que `/B3dev-TP_VUE/socket.io/` soit préservé → pas de trailing slash.
+
+Recharger après modification :
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+
+
+#### Structure
 
 ```
 push → staging
@@ -1821,20 +2202,20 @@ http {
         index index.php;
         charset utf-8;
 
-        location / {
+        localisation / {
             try_files $uri $uri/ /index.php?$query_string;
         }
 
-        location = /favicon.ico { log_not_found off; access_log off; }
-        location = /robots.txt  { log_not_found off; access_log off; }
+        localisation = /favicon.ico { log_not_found off; access_log off; }
+        localisation = /robots.txt  { log_not_found off; access_log off; }
 
-        location ~ \.php$ {
+        localisation ~ \.php$ {
             fastcgi_pass 127.0.0.1:9000;
             fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
             include fastcgi_params;
         }
 
-        location ~ /\.ht { deny all; }
+        localisation ~ /\.ht { deny all; }
     }
 }
 ```
@@ -1914,6 +2295,7 @@ cinemap:
   build:
     context: ./B3dev-TP_framework_php/cinemap-app
     dockerfile: deployment/Dockerfile
+  image: www-cinemap
   container_name: cinemap
   ports:
     - "3012:80"
@@ -1924,10 +2306,12 @@ cinemap:
   restart: unless-stopped
 ```
 
-#### 2. Ajouter le bloc nginx dans `/etc/nginx/sites-enabled/vps` et `/etc/nginx/sites-avaliable/vps`
+> `image: www-cinemap` suit la convention du VPS (`www-<projet>`). Sans cette ligne, Docker Compose génère un nom d'image automatique peu lisible.
+
+#### 2. Ajouter le bloc nginx dans `/etc/nginx/sites-available/vps` et `/etc/nginx/sites-enabled/vps`
 
 ```nginx
-location /cinemap/ {
+localisation /cinemap/ {
     rewrite ^/cinemap/(.*)$ /$1 break;
     proxy_pass http://127.0.0.1:3012;
     proxy_http_version 1.1;
@@ -2161,6 +2545,78 @@ Dans **Settings → Secrets and variables → Actions** du repo GitHub, ajouter 
 | `VPS_SSH_KEY` | contenu de la clé privée SSH (`~/.ssh/id_rsa`) |
 
 > Pour générer une clé SSH dédiée : `ssh-keygen -t ed25519 -C "github-actions"`, puis ajouter la clé **publique** dans `~/.ssh/authorized_keys` sur le VPS.
+
+---
+
+### Partie H — Utiliser le serveur MCP contre le VPS
+
+Le serveur MCP tourne toujours **en local** (stdio — Claude Code le lance sur ta machine). Mais au lieu de pointer vers `localhost:8000`, il peut interroger l'app déployée sur le VPS.
+
+#### Architecture
+
+```
+Ta machine locale
+├── Claude Code  ──stdio──▶  node cinemap-mcp/index.js
+│                                      │
+│                               HTTP fetch
+│                                      ▼
+│                         http://78.138.58.95/cinemap  ← VPS (staging)
+```
+
+Aucune installation sur le VPS — seul `BASE_URL` et le token changent.
+
+#### 1. Récupérer un token JWT depuis le VPS
+
+```bash
+curl -s -X POST http://78.138.58.95/cinemap/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"Test123!"}' | jq -r '.token'
+```
+
+> L'utilisateur `test@example.com` doit exister et être abonné sur la DB du VPS (créé via `docker exec cinemap php artisan migrate:fresh --seed`).
+
+#### 2. Mettre à jour `cinemap-mcp/index.js`
+
+Changer `BASE_URL` pour pointer vers le VPS :
+
+```js
+const BASE_URL = "http://78.138.58.95/cinemap";
+```
+
+> Pour switcher facilement entre dev et staging, utiliser une variable d'environnement :
+> ```js
+> const BASE_URL = process.env.CINEMAP_BASE_URL ?? "http://localhost:8000";
+> ```
+
+#### 3. Mettre à jour `~/.config/Claude/settings.json`
+
+```json
+{
+  "mcpServers": {
+    "cinemap": {
+      "command": "/home/rusty/.nvm/versions/node/v20.19.0/bin/node",
+      "args": ["/path/.../B3dev-TP_framework_php/cinemap-mcp/index.js"],
+      "env": {
+        "CINEMAP_BASE_URL": "http://78.138.58.95/cinemap",
+        "CINEMAP_JWT_TOKEN": "eyJ..."
+      }
+    }
+  }
+}
+```
+
+Redémarrer Claude Code pour que la nouvelle config soit prise en compte.
+
+#### 4. Tester
+
+Dans Claude Code :
+```
+List all films
+Get localisations for film 1
+```
+
+Claude appelle `list_films` → `GET http://78.138.58.95/cinemap/api/films`  
+Claude appelle `get_localisations_for_film` → `GET http://78.138.58.95/cinemap/api/films/1/localisations`
 
 ---
 

@@ -26,6 +26,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -
 ---
 
+## [0.10.0] - 23/04/2026
+
+### Ajouté
+
+- Suite de tests Feature Pest pour l'API JSON (`tests/Feature/Api/`) :
+  - `FilmApiTest` : 3 tests sur `GET /api/films` — statut 200, tri par nom, structure des champs
+  - `ApiAuthTest` : 3 tests sur `POST /api/auth/login` — 401 mauvais identifiants, 403 non abonné, 200 + token si abonné (abonnement créé directement en DB, sans appel Stripe)
+  - `FilmLocalisationsApiTest` : 2 tests sur `GET /api/films/{film}/localisations` — 401 sans token, 200 avec `actingAs($user, 'api')`
+
+### Corrigé
+
+- Route `GET /api/films/{film}/locations` renommée en `GET /api/films/{film}/localisations` pour cohérence avec le modèle — mise à jour dans `routes/api.php`, `FilmApiController`, `cinemap-mcp/index.js` et la vue `subscription/index.blade.php`
+- Tests Breeze `AuthenticationTest` et `RegistrationTest` : redirect attendu corrigé de `route('dashboard')` vers `route('home')` (la redirection post-login avait été changée en étape 1)
+- `ExampleTest` : route `/` remplacée par `/home` (la racine redirige en 302)
+
+---
+
 ## [0.9.0] - 23/04/2026
 
 ### Ajouté
