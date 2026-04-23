@@ -8,5 +8,5 @@ use Illuminate\Support\Facades\Route;
 Route::get('/films', [FilmApiController::class, 'index']);
 Route::post('/auth/login', [ApiAuthController::class, 'login']);
 Route::middleware('auth:api')->group(function () {
-    Route::get('/films/{film}/locations', [FilmApiController::class, 'locations']);
+    Route::get('/films/{film}/localisations', [FilmApiController::class, 'localisations']);
 });

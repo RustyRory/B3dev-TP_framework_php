@@ -1169,7 +1169,7 @@ Route::get('/auth/discord/callback', [SocialiteController::class, 'handleDiscord
 
 ```
 POST /api/auth/login       → retourne un token JWT
-GET  /api/films/{film}/locations   Authorization: Bearer <token>
+GET  /api/films/{film}/localisations   Authorization: Bearer <token>
 ```
 
 ---
@@ -1342,7 +1342,7 @@ public function login(Request $request)
 ```php
 use App\Models\Film;
 
-public function locations(Film $film)
+public function localisations(Film $film)
 {
     return response()->json([
         'film'          => $film->only(['id', 'name', 'producer', 'release_year', 'synopsis']),
@@ -1378,7 +1378,7 @@ use App\Http\Controllers\FilmApiController;
 Route::post('/auth/login', [ApiAuthController::class, 'login']);
 
 Route::middleware('auth:api')->group(function () {
-    Route::get('/films/{film}/locations', [FilmApiController::class, 'locations']);
+    Route::get('/films/{film}/localisations', [FilmApiController::class, 'localisations']);
 });
 ```
 
@@ -1392,7 +1392,7 @@ curl -s -X POST http://localhost:8000/api/auth/login \
   -d '{"email":"ton@email.com","password":"motdepasse"}' | jq .
 
 # Puis avec le token :
-curl -s http://localhost:8000/api/films/1/locations \
+curl -s http://localhost:8000/api/films/1/localisations \
   -H "Authorization: Bearer <token>" | jq .
 ```
 ---
@@ -1425,7 +1425,7 @@ Le serveur MCP expose des tools (outils). L'IA décide quand les appeler en fonc
 
 | Primitive | Rôle | Exemple
 |---|---|
-| Tools | Actions que l'IA peut déclencher | `list_films`, `get_locations_for_film` |
+| Tools | Actions que l'IA peut déclencher | `list_films`, `get_localisations_for_film` |
 | Resources | Données que l'IA peut lire | Un fichier, une page web |
 | Prompts | Templates de prompts réutilisables | — |
 Pour le TP, besoin que des Tools.
@@ -1453,14 +1453,14 @@ Exemple de dialogue IA :
 | Outil | Description |
 |---|---|
 | `list_films` | Retourne la liste de tous les films |
-| `get_locations_for_film` | Retourne les emplacements d'un film donné |
+| `get_localisations_for_film` | Retourne les emplacements d'un film donné |
 
 #### Ce qu'il faut faire
 
 **script Node.js** qui appelle ton API Laravel existante (étape 8).
 
 On a déjà :
-- GET /api/films/{film}/locations (protégé JWT)
+- GET /api/films/{film}/localisations (protégé JWT)
 - Une DB avec des films et des localisations
 Il faut un pont MCP → API.
 
@@ -1514,11 +1514,11 @@ server.tool("list_films", "Retourne la liste de tous les films CineMap", {}, asy
 
 // Outil 2 — localisations d'un film
 server.tool(
-    "get_locations_for_film",
+    "get_localisations_for_film",
     "Retourne les emplacements de tournage d'un film CineMap",
     { film_id: z.number().describe("ID du film") },
     async ({ film_id }) => {
-        const res = await fetch(`${BASE_URL}/api/films/${film_id}/locations`, {
+        const res = await fetch(`${BASE_URL}/api/films/${film_id}/localisations`, {
             headers: { Authorization: `Bearer ${JWT_TOKEN}` },
         });
         const data = await res.json();
@@ -1532,7 +1532,7 @@ await server.connect(transport);
 
 ### `api.php`
 
-> `list_films` appelle une route publique à créer — `get_locations_for_film` réutilise la route JWT de l'étape 8.
+> `list_films` appelle une route publique à créer — `get_localisations_for_film` réutilise la route JWT de l'étape 8.
 
 Dans `cinemap-app/routes/api.php`, ajouter une route publique (hors du groupe middleware(`auth:api`)) :
 ```php
@@ -1555,7 +1555,7 @@ Route::get('/films', [FilmApiController::class, 'index']);           // public
 Route::post('/auth/login', [ApiAuthController::class, 'login']);     // public
 
 Route::middleware('auth:api')->group(function () {
-    Route::get('/films/{film}/locations', [FilmApiController::class, 'locations']);
+    Route::get('/films/{film}/localisations', [FilmApiController::class, 'localisations']);
 });
 ```
 
@@ -1636,7 +1636,7 @@ Setting up Claude Code...
 
   Version: 2.1.118
 
-  Location: ~/.local/bin/claude
+  localisation: ~/.local/bin/claude
 
 
   Next: Run claude --help to get started
@@ -1654,7 +1654,7 @@ claude
 
 Dans Claude Code, taper :
 - `List all films`
-- ou : `Get locations for film 1`
+- ou : `Get localisations for film 1`
 
 Claude va appeler le serveur MCP
 L'API Laravel sera utilisée
@@ -1678,7 +1678,7 @@ L'API Laravel sera utilisée
 
   2 films total.
 
-❯ Get locations for film 1
+❯ Get localisations for film 1
 
 ● Bash(TOKEN=$(grep CINEMAP_JWT_TOKEN /home/rusty/Documents/B3dev/Php/B3dev-TP_framework_php/cinemap-mcp/.env | cut -d= -f2) && curl -s http://localhost:8000/api/films…)
   ⎿  {
@@ -1686,7 +1686,7 @@ L'API Laravel sera utilisée
              "id": 1,
      … +16 lines (ctrl+o to expand)
 
-● Inception — Filming locations:
+● Inception — Filming localisations:
 
   ┌─────┬──────────────┬──────────┬─────────┬─────────┐
   │ ID  │     Name     │   City   │ Country │ Upvotes │
@@ -1694,7 +1694,7 @@ L'API Laravel sera utilisée
   │ 1   │ Central Park │ New York │ USA     │ 0       │
   └─────┴──────────────┴──────────┴─────────┴─────────┘
 
-❯ Get location for Matrix
+❯ Get localisation for Matrix
 
 ● Bash(TOKEN=$(grep CINEMAP_JWT_TOKEN /home/rusty/Documents/B3dev/Php/B3dev-TP_framework_php/cinemap-mcp/.env | cut -d= -f2) && curl -s http://localhost:8000/api/films…)
   ⎿  {
@@ -1702,7 +1702,7 @@ L'API Laravel sera utilisée
              "id": 2,
      … +16 lines (ctrl+o to expand)
 
-● The Matrix — Filming locations:
+● The Matrix — Filming localisations:
 
   ┌─────┬──────────────┬───────┬─────────┬─────────┐
   │ ID  │     Name     │ City  │ Country │ Upvotes │
@@ -1795,14 +1795,14 @@ Trois routes API à couvrir :
 |---|---|
 | `GET /api/films` | 200 + liste ordonnée + bons champs |
 | `POST /api/auth/login` | 401 mauvais mdp, 403 non abonné, 200 + token |
-| `GET /api/films/{id}/locations` | 401 sans token, 200 avec token valide |
+| `GET /api/films/{id}/localisations` | 401 sans token, 200 avec token valide |
 
 ### Créer les fichiers de test
 
 ```bash
 php artisan make:test Api/FilmApiTest
 php artisan make:test Api/ApiAuthTest
-php artisan make:test Api/FilmLocationsApiTest
+php artisan make:test Api/FilmLocalisationsApiTest
 ```
 
 ### `tests/Feature/Api/FilmApiTest.php`
@@ -1882,7 +1882,7 @@ test('login retourne un token si l\'utilisateur est abonné', function () {
 
 > `$user->subscriptions()->create([...])` insère l'abonnement directement en base, sans passer par Stripe. La méthode `subscribed('default')` de Cashier vérifie uniquement le `stripe_status` en DB.
 
-### `tests/Feature/Api/FilmLocationsApiTest.php`
+### `tests/Feature/Api/FilmLocalisationsApiTest.php`
 
 ```php
 <?php
@@ -1890,19 +1890,19 @@ test('login retourne un token si l\'utilisateur est abonné', function () {
 use App\Models\Film;
 use App\Models\User;
 
-test('GET /api/films/{film}/locations retourne 401 sans token', function () {
+test('GET /api/films/{film}/localisations retourne 401 sans token', function () {
     $film = Film::factory()->create();
 
-    $this->getJson("/api/films/{$film->id}/locations")
+    $this->getJson("/api/films/{$film->id}/localisations")
         ->assertStatus(401);
 });
 
-test('GET /api/films/{film}/locations retourne 200 avec un utilisateur authentifié', function () {
+test('GET /api/films/{film}/localisations retourne 200 avec un utilisateur authentifié', function () {
     $user = User::factory()->create();
     $film = Film::factory()->create();
 
     $this->actingAs($user, 'api')
-        ->getJson("/api/films/{$film->id}/locations")
+        ->getJson("/api/films/{$film->id}/localisations")
         ->assertOk()
         ->assertJsonStructure(['film', 'localisations']);
 });
@@ -1939,9 +1939,9 @@ Exemple de sortie :
   ✓ login retourne 403 si l'utilisateur n'est pas abonné
   ✓ login retourne un token si l'utilisateur est abonné
 
-   PASS  Tests\Feature\Api\FilmLocationsApiTest
-  ✓ GET /api/films/{film}/locations retourne 401 sans token
-  ✓ GET /api/films/{film}/locations retourne 200 avec un utilisateur authentifié
+   PASS  Tests\Feature\Api\FilmlocalisationsApiTest
+  ✓ GET /api/films/{film}/localisations retourne 401 sans token
+  ✓ GET /api/films/{film}/localisations retourne 200 avec un utilisateur authentifié
 
   Tests:    8 passed
   Duration: 0.42s
@@ -2066,7 +2066,7 @@ server {
     index index.html;
 
     # API
-    location /B3dev-TP_VUE/api/ {
+    localisation /B3dev-TP_VUE/api/ {
         rewrite ^/B3dev-TP_VUE/api/(.*)$ /api/$1 break;
         proxy_pass http://127.0.0.1:3003/api/;
         proxy_http_version 1.1;
@@ -2075,7 +2075,7 @@ server {
     }
 
     # Socket.IO — pas de trailing slash → chemin complet préservé
-    location /B3dev-TP_VUE/socket.io/ {
+    localisation /B3dev-TP_VUE/socket.io/ {
         proxy_pass http://127.0.0.1:3003;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -2085,7 +2085,7 @@ server {
     }
 
     # Frontend — trailing slash → strip le préfixe
-    location /B3dev-TP_VUE/ {
+    localisation /B3dev-TP_VUE/ {
         proxy_pass http://127.0.0.1:8080/;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -2094,7 +2094,7 @@ server {
         proxy_set_header Connection "upgrade";
     }
 
-    location / {
+    localisation / {
         try_files $uri $uri/ /index.html;
     }
 }
@@ -2202,20 +2202,20 @@ http {
         index index.php;
         charset utf-8;
 
-        location / {
+        localisation / {
             try_files $uri $uri/ /index.php?$query_string;
         }
 
-        location = /favicon.ico { log_not_found off; access_log off; }
-        location = /robots.txt  { log_not_found off; access_log off; }
+        localisation = /favicon.ico { log_not_found off; access_log off; }
+        localisation = /robots.txt  { log_not_found off; access_log off; }
 
-        location ~ \.php$ {
+        localisation ~ \.php$ {
             fastcgi_pass 127.0.0.1:9000;
             fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
             include fastcgi_params;
         }
 
-        location ~ /\.ht { deny all; }
+        localisation ~ /\.ht { deny all; }
     }
 }
 ```
@@ -2311,7 +2311,7 @@ cinemap:
 #### 2. Ajouter le bloc nginx dans `/etc/nginx/sites-available/vps` et `/etc/nginx/sites-enabled/vps`
 
 ```nginx
-location /cinemap/ {
+localisation /cinemap/ {
     rewrite ^/cinemap/(.*)$ /$1 break;
     proxy_pass http://127.0.0.1:3012;
     proxy_http_version 1.1;
@@ -2612,11 +2612,11 @@ Redémarrer Claude Code pour que la nouvelle config soit prise en compte.
 Dans Claude Code :
 ```
 List all films
-Get locations for film 1
+Get localisations for film 1
 ```
 
 Claude appelle `list_films` → `GET http://78.138.58.95/cinemap/api/films`  
-Claude appelle `get_locations_for_film` → `GET http://78.138.58.95/cinemap/api/films/1/locations`
+Claude appelle `get_localisations_for_film` → `GET http://78.138.58.95/cinemap/api/films/1/localisations`
 
 ---
 

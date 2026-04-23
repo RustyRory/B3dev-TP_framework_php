@@ -40,7 +40,7 @@
                     </div>
                     <ul class="space-y-2 text-sm text-gray-600 dark:text-gray-400 mb-2">
                         <li class="flex items-center gap-2">
-                            <span class="text-green-500 font-bold">✓</span> Accès à l'API <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">GET /api/films/{film}/locations</code>
+                            <span class="text-green-500 font-bold">✓</span> Accès à l'API <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">GET /api/films/{film}/localisations</code>
                         </li>
                         <li class="flex items-center gap-2">
                             <span class="text-green-500 font-bold">✓</span> Authentification JWT
