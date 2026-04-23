@@ -1968,9 +1968,12 @@ Exemple de sortie :
 
 Le VPS fourni par la formation est configuré en multi-app selon la structure suivante :
 
-`http://78.138.58.95/` → page d'accueil (navigation entre les apps)  
-`http://78.138.58.95/cinemap/` → ce projet  
-`http://78.138.58.95/<autreProjet>/` → autres projets B3
+`http://78.138.58.95/` → page d'accueil (`/var/www/home/index.html`)  
+`http://78.138.58.95/collegelaboussole/` → College La Boussole  
+`http://78.138.58.95/saintbarthvolley/` → SaintBarth Volley  
+`http://78.138.58.95/lucky7/` → Lucky7  
+`http://78.138.58.95/B3dev-TP_VUE/` → TP VUE  
+`http://78.138.58.95/cinemap/` → ce projet (à déployer)
 
 Les autres projets sont déjà dockerisés et déployés. Au moment de la mise en place de CineMap, le VPS tourne avec les containers suivants :
 
@@ -2029,18 +2032,24 @@ MongoDB tourne dans un conteneur Docker — pas d'installation sur le VPS.
 ```
 /var/www/
 │
-├── B3dev-TP_VUE/          ← dépôt cloné
-│   ├── express-project/
-│   └── my-project/
-│
-├── etc...
+├── B3dev-TP_VUE/          ← TP Vue (front + api)
+├── CollegeLaBoussole/     ← projet CLB (front + back)
+├── Lucky7/                ← projet Lucky7 (front + back)
+├── SaintBarthVolley/      ← projet SBV (front + api)
+├── B3dev-TP_framework_php/← ce projet (à cloner)
 │
 ├── data/
-│   └── mongo/             ← volume MongoDB
+│   └── mongo/             ← volume MongoDB persistant
 │
-├── home/                  ← page d'accueil HTML statique
-└── docker-compose.yml
+├── home/
+│   └── index.html         ← page d'accueil avec liens vers toutes les apps
+└── docker-compose.yml     ← tous les services centralisés ici
 ```
+
+> Lors du déploiement de CineMap, ajouter le lien dans `/var/www/home/index.html` :
+> ```html
+> <a href="/cinemap/">CineMap</a>
+> ```
 
 ##### Docker Compose
 
@@ -2106,8 +2115,6 @@ Recharger après modification :
 ```bash
 sudo nginx -t && sudo systemctl reload nginx
 ```
-
-
 
 #### Structure
 
@@ -2202,20 +2209,20 @@ http {
         index index.php;
         charset utf-8;
 
-        localisation / {
+        location / {
             try_files $uri $uri/ /index.php?$query_string;
         }
 
-        localisation = /favicon.ico { log_not_found off; access_log off; }
-        localisation = /robots.txt  { log_not_found off; access_log off; }
+        location = /favicon.ico { log_not_found off; access_log off; }
+        location = /robots.txt  { log_not_found off; access_log off; }
 
-        localisation ~ \.php$ {
+        location ~ \.php$ {
             fastcgi_pass 127.0.0.1:9000;
             fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
             include fastcgi_params;
         }
 
-        localisation ~ /\.ht { deny all; }
+        location ~ /\.ht { deny all; }
     }
 }
 ```
@@ -2288,7 +2295,24 @@ exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
 
 Ces étapes sont faites **une fois** en SSH sur le VPS, pas automatisées.
 
-#### 1. Ajouter le service dans `/var/www/docker-compose.yml`
+#### 1. Cloner le dépôt sur le VPS
+
+```bash
+cd /var/www
+git clone git@github.com:RustyRory/B3dev-TP_framework_php.git
+cd B3dev-TP_framework_php
+git checkout staging
+```
+
+> La branche `staging` doit exister sur GitHub avant de faire cette étape. La créer localement puis pousser :
+> ```bash
+> git checkout -b staging
+> git push -u origin staging
+> ```
+
+Pour les mises à jour suivantes, c'est la pipeline GitHub Actions qui fait le `git pull` automatiquement — ce clone manuel n'est fait **qu'une seule fois**.
+
+#### 2. Ajouter le service dans `/var/www/docker-compose.yml`
 
 ```yaml
 cinemap:
@@ -2311,7 +2335,7 @@ cinemap:
 #### 2. Ajouter le bloc nginx dans `/etc/nginx/sites-available/vps` et `/etc/nginx/sites-enabled/vps`
 
 ```nginx
-localisation /cinemap/ {
+location /cinemap/ {
     rewrite ^/cinemap/(.*)$ /$1 break;
     proxy_pass http://127.0.0.1:3012;
     proxy_http_version 1.1;
