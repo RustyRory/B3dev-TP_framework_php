@@ -16,6 +16,8 @@ Route::get('/', function () {
 
 Route::get('/home', [HomeController::class, 'index'])->name('home');
 
+Route::get('/about', fn () => view('about'))->name('about');
+
 Route::get('/dashboard', function () {
     return view('dashboard', [
         'totalFilms' => Film::count(),
