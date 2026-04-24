@@ -22,8 +22,8 @@ class DatabaseSeeder extends Seeder
 
         User::factory()->create([
             'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => Hash::make('Test123!'),
+            'email' => dotenv('USER_TEST_EMAIL'),
+            'password' => Hash::make(dotenv('USER_TEST_PASSWORD')),
         ]);
 
         $this->call([FilmSeeder::class]);

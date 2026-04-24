@@ -12,8 +12,8 @@ class AdminSeeder extends Seeder
     {
         User::factory()->admin()->create([
             'name' => 'Admin',
-            'email' => 'admin@cinemap.fr',
-            'password' => Hash::make('Admin123!'),
+            'email' => dotenv('USER_ADMIN_EMAIL'),
+            'password' => Hash::make(dotenv('USER_ADMIN_PASSWORD')),
         ]);
     }
 }
