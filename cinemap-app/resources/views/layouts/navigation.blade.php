@@ -15,6 +15,9 @@
                     <x-nav-link :href="route('home')" :active="request()->routeIs('home')">
                         Accueil
                     </x-nav-link>
+                    <x-nav-link :href="route('about')" :active="request()->routeIs('about')">
+                        À propos
+                    </x-nav-link>
                     @auth
                     <x-nav-link :href="route('subscription.index')" :active="request()->routeIs('subscription.index')">
                         Abonnement
@@ -90,6 +93,9 @@
         <div class="pt-2 pb-3 space-y-1">
             <x-responsive-nav-link :href="route('home')" :active="request()->routeIs('home')">
                 Accueil
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('about')" :active="request()->routeIs('about')">
+                À propos
             </x-responsive-nav-link>
             @auth
             @if (auth()->user()->is_admin)
