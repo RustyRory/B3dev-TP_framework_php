@@ -26,6 +26,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -
 ---
 
+## [1.0.0] - 24/04/2026
+
+### Ajouté
+
+- Page `/about` (route publique `about`) : présentation du TP MyDigitalSchool Angers, stack technique, profil auteur avec avatar GitHub dynamique, liens vers le repo, le VPS et les autres projets
+- Footer persistant dans `layouts/app.blade.php` : nom du projet, contexte TP, lien « À propos » et lien GitHub
+- Favicon emoji 🎬 via SVG data URI dans `app.blade.php` et `guest.blade.php`
+- Lien « À propos » dans la navigation desktop et mobile (visible sans connexion)
+
+### Changement
+
+- Logo navbar (`components/application-logo.blade.php`) : SVG Laravel remplacé par l'émoji 🎬
+- `APP_NAME` passé de `Laravel` à `CineMap` dans `.env`
+
+---
+
 ## [0.11.0] - 24/04/2026
 
 ### Ajouté
