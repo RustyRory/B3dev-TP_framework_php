@@ -8,7 +8,7 @@ import { dirname, join } from "path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, ".env"), quiet: true });
 
-const BASE_URL = process.env.CINEMAP_BASE_URL || "http://localhost:8000";
+const BASE_URL = process.env.CINEMAP_BASE_URL;
 const EMAIL = process.env.CINEMAP_EMAIL;
 const PASSWORD = process.env.CINEMAP_PASSWORD;
 
