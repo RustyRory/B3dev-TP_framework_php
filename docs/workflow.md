@@ -116,6 +116,26 @@ return redirect()->intended(route('home', absolute: false));
 
 **Objectif :** gérer les films et les localisations de tournage.
 
+### Méthodologie
+
+On suit l'ordre :
+1. migration 
+2. model
+3. factory
+4. seeder
+5. controller 
+6. view
+
+Chaque couche dépend de la précédente : 
+- la migration définit la structure de la base, 
+- le model la mappe en objet, 
+- la factory génère du faux data basé sur ce model, 
+- le seeder peuple la base via la factory, 
+- le controller manipule ces données, et 
+- la view les affiche. 
+
+Respecter cet ordre évite les erreurs en cascade (foreign key inexistante, model sans table, factory sans model) et permet de valider chaque couche avant de passer à la suivante.
+
 ### Modèle de données
 
 **Film**
@@ -124,7 +144,7 @@ return redirect()->intended(route('home', absolute: false));
 $table->string('name')->unique();
 $table->string('producer');
 $table->unsignedSmallInteger('release_year');
-$table->unsignedSmallInteger('time');          // durée en minutes
+$table->unsignedSmallInteger('time');          // minutes
 $table->string('genres');
 $table->text('synopsis');
 $table->string('poster_url');
@@ -1484,44 +1504,72 @@ cinemap-mcp/
 }
 ```
 
-Pour récupérer le token d'un user abonné :
-```bash
-curl -s -X POST http://localhost:8000/api/auth/login   -H "Content-Type: application/json"   -d '{"email":"test@example.com","password":"Test123!"}' | jq -r '.token'
-```
-
 `.env`
 ```env
-CINEMAP_JWT_TOKEN=eyJ...
+CINEMAP_BASE_URL=http://localhost:8000
+CINEMAP_EMAIL=test@example.com
+CINEMAP_PASSWORD=Test123!
 ```
+
+> Le token JWT est obtenu **automatiquement** au démarrage du serveur MCP à partir des credentials. Pas besoin de le copier-coller manuellement.
 
 `index.js` — le serveur complet
 ```js
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import dotenv from "dotenv";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 
-const BASE_URL = "http://localhost:8000";
-const JWT_TOKEN = process.env.CINEMAP_JWT_TOKEN; // token d'un user abonné
+const __dirname = dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: join(__dirname, ".env"), quiet: true });
+
+const BASE_URL = process.env.CINEMAP_BASE_URL || "http://localhost:8000";
+const EMAIL = process.env.CINEMAP_EMAIL;
+const PASSWORD = process.env.CINEMAP_PASSWORD;
+
+let jwtToken = process.env.CINEMAP_JWT_TOKEN;
+
+async function login() {
+    const res = await fetch(`${BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
+    });
+    const data = await res.json();
+    if (data.access_token) {
+        jwtToken = data.access_token;
+    }
+}
+
+async function authedFetch(url) {
+    let res = await fetch(url, { headers: { Authorization: `Bearer ${jwtToken}` } });
+    if (res.status === 401 && EMAIL && PASSWORD) {
+        await login();
+        res = await fetch(url, { headers: { Authorization: `Bearer ${jwtToken}` } });
+    }
+    return res.json();
+}
+
+if (EMAIL && PASSWORD) {
+    await login();
+}
 
 const server = new McpServer({ name: "cinemap", version: "1.0.0" });
 
-// Outil 1 — liste tous les films
 server.tool("list_films", "Retourne la liste de tous les films CineMap", {}, async () => {
     const res = await fetch(`${BASE_URL}/api/films`);
     const data = await res.json();
     return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
 });
 
-// Outil 2 — localisations d'un film
 server.tool(
     "get_localisations_for_film",
     "Retourne les emplacements de tournage d'un film CineMap",
     { film_id: z.number().describe("ID du film") },
     async ({ film_id }) => {
-        const res = await fetch(`${BASE_URL}/api/films/${film_id}/localisations`, {
-            headers: { Authorization: `Bearer ${JWT_TOKEN}` },
-        });
-        const data = await res.json();
+        const data = await authedFetch(`${BASE_URL}/api/films/${film_id}/localisations`);
         return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
     }
 );
@@ -1529,6 +1577,8 @@ server.tool(
 const transport = new StdioServerTransport();
 await server.connect(transport);
 ```
+
+> **`dotenv.config({ path: join(__dirname, ".env"), quiet: true })`** — le `path` absolu est nécessaire car Claude Code peut lancer le process depuis n'importe quel répertoire. `quiet: true` supprime les logs dotenv qui sinon polluent le flux stdio et cassent le protocole MCP.
 
 ### `api.php`
 
@@ -1591,38 +1641,25 @@ Contenu du fichier :
 {
   "mcpServers": {
     "cinemap": {
-      "command": "node",
+      "command": "/usr/bin/node",
       "args": ["/chemin/absolu/vers/cinemap-mcp/index.js"],
       "env": {
-        "CINEMAP_JWT_TOKEN": "eyJ..."
-      }
-    }
-  }
-}
-
-
-{
-  "mcpServers": {
-    "cinemap": {
-      "command": "node",
-      "args": ["~/Documents/B3dev/Php/B3dev-TP_framework_php/cinemap-mcp/index.js"],
-      "env": {
-        "CINEMAP_JWT_TOKEN": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjgwMDAvYXBpL2F1dGgvbG9naW4iLCJpYXQiOjE3NzY5MzE1NzAsImV4cCI6MTc3NjkzNTE3MCwibmJmIjoxNzc2OTMxNTcwLCJqdGkiOiJCY0FpTkhTMGVjc3g4TmJ4Iiwic3ViIjoiMiIsInBydiI6IjIzYmQ1Yzg5NDlmNjAwYWRiMzllNzAxYzQwMDg3MmRiN2E1OTc2ZjcifQ.aqfx-IcazHUfJyRQ-widelhEebOc1lZawGnlD4lc4Fc"
+        "CINEMAP_BASE_URL": "http://localhost:8000",
+        "CINEMAP_EMAIL": "ton@email.com",
+        "CINEMAP_PASSWORD": "tonmotdepasse"
       }
     }
   }
 }
 ```
 
-Puis **redémarrer Claude** pour que la config soit prise en compte. Un icône de prise apparaît dans l'interface si le serveur MCP est bien détecté.
+> Les credentials dans `settings.json` sont prioritaires sur le `.env`. Le token JWT est obtenu automatiquement par `index.js` au démarrage — pas besoin de le renseigner ici.
 
-> **Si node est installé via `nvm`**, Claude ne charge pas le `.bashrc` et ne trouve pas `node` dans le PATH. Utiliser le chemin absolu :
+Puis **redémarrer Claude** pour que la config soit prise en compte.
+
+> **`command` doit être un chemin absolu** — Claude Code ne charge pas le `.bashrc`, donc `node` n'est pas dans le PATH.
 > ```bash
-> which node   # ex : /home/user/.nvm/versions/node/v20.19.0/bin/node
-> ```
-> Puis dans la config :
-> ```json
-> "command": "/home/user/.nvm/versions/node/v20.19.0/bin/node"
+> which node   # ex : /usr/bin/node
 > ```
 
 ### Installer claude code (linux)
@@ -1968,9 +2005,12 @@ Exemple de sortie :
 
 Le VPS fourni par la formation est configuré en multi-app selon la structure suivante :
 
-`http://78.138.58.95/` → page d'accueil (navigation entre les apps)  
-`http://78.138.58.95/cinemap/` → ce projet  
-`http://78.138.58.95/<autreProjet>/` → autres projets B3
+`http://78.138.58.95/` → page d'accueil (`/var/www/home/index.html`)  
+`http://78.138.58.95/collegelaboussole/` → College La Boussole  
+`http://78.138.58.95/saintbarthvolley/` → SaintBarth Volley  
+`http://78.138.58.95/lucky7/` → Lucky7  
+`http://78.138.58.95/B3dev-TP_VUE/` → TP VUE  
+`http://78.138.58.95/cinemap/` → ce projet (à déployer)
 
 Les autres projets sont déjà dockerisés et déployés. Au moment de la mise en place de CineMap, le VPS tourne avec les containers suivants :
 
@@ -2029,18 +2069,24 @@ MongoDB tourne dans un conteneur Docker — pas d'installation sur le VPS.
 ```
 /var/www/
 │
-├── B3dev-TP_VUE/          ← dépôt cloné
-│   ├── express-project/
-│   └── my-project/
-│
-├── etc...
+├── B3dev-TP_VUE/          ← TP Vue (front + api)
+├── CollegeLaBoussole/     ← projet CLB (front + back)
+├── Lucky7/                ← projet Lucky7 (front + back)
+├── SaintBarthVolley/      ← projet SBV (front + api)
+├── B3dev-TP_framework_php/← ce projet (à cloner)
 │
 ├── data/
-│   └── mongo/             ← volume MongoDB
+│   └── mongo/             ← volume MongoDB persistant
 │
-├── home/                  ← page d'accueil HTML statique
-└── docker-compose.yml
+├── home/
+│   └── index.html         ← page d'accueil avec liens vers toutes les apps
+└── docker-compose.yml     ← tous les services centralisés ici
 ```
+
+> Lors du déploiement de CineMap, ajouter le lien dans `/var/www/home/index.html` :
+> ```html
+> <a href="/cinemap/">CineMap</a>
+> ```
 
 ##### Docker Compose
 
@@ -2107,8 +2153,6 @@ Recharger après modification :
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-
-
 #### Structure
 
 ```
@@ -2148,7 +2192,7 @@ WORKDIR /var/www/html
 
 # Dépendances PHP (layer séparé pour le cache Docker)
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --optimize-autoloader --no-scripts --no-autoloader
+RUN composer install --optimize-autoloader --no-scripts --no-autoloader
 
 # Dépendances Node (layer séparé)
 COPY package.json package-lock.json ./
@@ -2202,20 +2246,20 @@ http {
         index index.php;
         charset utf-8;
 
-        localisation / {
+        location / {
             try_files $uri $uri/ /index.php?$query_string;
         }
 
-        localisation = /favicon.ico { log_not_found off; access_log off; }
-        localisation = /robots.txt  { log_not_found off; access_log off; }
+        location = /favicon.ico { log_not_found off; access_log off; }
+        location = /robots.txt  { log_not_found off; access_log off; }
 
-        localisation ~ \.php$ {
+        location ~ \.php$ {
             fastcgi_pass 127.0.0.1:9000;
             fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
             include fastcgi_params;
         }
 
-        localisation ~ /\.ht { deny all; }
+        location ~ /\.ht { deny all; }
     }
 }
 ```
@@ -2288,7 +2332,24 @@ exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
 
 Ces étapes sont faites **une fois** en SSH sur le VPS, pas automatisées.
 
-#### 1. Ajouter le service dans `/var/www/docker-compose.yml`
+#### 1. Cloner le dépôt sur le VPS
+
+```bash
+cd /var/www
+git clone git@github.com:RustyRory/B3dev-TP_framework_php.git
+cd B3dev-TP_framework_php
+git checkout staging
+```
+
+> La branche `staging` doit exister sur GitHub avant de faire cette étape. La créer localement puis pousser :
+> ```bash
+> git checkout -b staging
+> git push -u origin staging
+> ```
+
+Pour les mises à jour suivantes, c'est la pipeline GitHub Actions qui fait le `git pull` automatiquement — ce clone manuel n'est fait **qu'une seule fois**.
+
+#### 2. Ajouter le service dans `/var/www/docker-compose.yml`
 
 ```yaml
 cinemap:
@@ -2300,7 +2361,7 @@ cinemap:
   ports:
     - "3012:80"
   volumes:
-    - ./data/cinemap:/var/www/html/database   # persistance SQLite entre les déploiements
+    - ./data/cinemap/database.sqlite:/var/www/html/database/database.sqlite
   env_file:
     - ./B3dev-TP_framework_php/cinemap-app/.env
   restart: unless-stopped
@@ -2308,10 +2369,16 @@ cinemap:
 
 > `image: www-cinemap` suit la convention du VPS (`www-<projet>`). Sans cette ligne, Docker Compose génère un nom d'image automatique peu lisible.
 
-#### 2. Ajouter le bloc nginx dans `/etc/nginx/sites-available/vps` et `/etc/nginx/sites-enabled/vps`
+> **Volume** : monter uniquement le fichier SQLite (pas tout le dossier `database/`) — sinon le volume écrase les migrations et seeders copiés lors du build. Créer le fichier avant le premier `up` :
+> ```bash
+> mkdir -p /var/www/data/cinemap
+> touch /var/www/data/cinemap/database.sqlite
+> ```
+
+#### 3. Ajouter le bloc nginx dans `/etc/nginx/sites-available/vps` et `/etc/nginx/sites-enabled/vps`
 
 ```nginx
-localisation /cinemap/ {
+location /cinemap/ {
     rewrite ^/cinemap/(.*)$ /$1 break;
     proxy_pass http://127.0.0.1:3012;
     proxy_http_version 1.1;
@@ -2327,7 +2394,7 @@ Recharger nginx :
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-#### 3. Créer le `.env` sur le VPS
+#### 4. Créer le `.env` sur le VPS
 
 Créer `/var/www/B3dev-TP_framework_php/cinemap-app/.env` :
 
@@ -2361,15 +2428,71 @@ JWT_SECRET=...            # générer avec : php artisan jwt:secret --show
 
 > `APP_URL` et `ASSET_URL` avec le préfixe `/cinemap` sont indispensables : sans eux, les assets Vite et les redirections Laravel pointent vers la racine du VPS.
 
-#### 4. Seeder (premier déploiement uniquement)
+#### 5. Discord Developer Portal — ajouter l'URL de callback VPS
+
+Dans **[discord.com/developers/applications](https://discord.com/developers/applications)** → ton application → **OAuth2 → General → Redirects** :
+
+Ajouter : `http://78.138.58.95/cinemap/auth/discord/callback`
+
+> Sans cet ajout, Discord refuse la connexion OAuth avec une erreur `redirect_uri non valide`.
+
+#### 6. Seeder (premier déploiement uniquement)
 
 ```bash
-docker exec cinemap php artisan migrate:fresh --seed
+sudo docker exec cinemap php artisan migrate:fresh --seed
 ```
 
 ---
 
-### Partie F — GitHub Actions
+### Partie F — Adaptations Laravel pour le déploiement sous-chemin
+
+Nginx strip le préfixe `/cinemap/` avant de passer la requête à Laravel. Sans adaptations, Laravel génère des redirects et des URLs sans ce préfixe.
+
+#### 1. `AppServiceProvider` — forcer la root URL
+
+```php
+// app/Providers/AppServiceProvider.php
+use Illuminate\Support\Facades\URL;
+
+public function boot(): void
+{
+    if (! app()->environment('local')) {
+        URL::forceRootUrl(config('app.url'));
+    }
+
+    \Event::listen(SocialiteWasCalled::class, DiscordExtendSocialite::class);
+}
+```
+
+#### 2. Contrôleurs d'auth — supprimer `absolute: false`
+
+`route('name', absolute: false)` combiné à `forceRootUrl` produit des URLs doublées (`/cinemap/cinemap/home`). Utiliser des routes absolues :
+
+```php
+// AuthenticatedSessionController.php
+return redirect()->intended(route('home'));   // sans absolute: false
+
+// RegisteredUserController.php
+return redirect(route('home'));              // sans absolute: false
+```
+
+#### 3. Lien Discord dans `login.blade.php`
+
+Le href hardcodé `/auth/discord` ne tient pas compte du préfixe. Utiliser le helper `url()` :
+
+```html
+<!-- Avant -->
+<a href="/auth/discord">
+
+<!-- Après -->
+<a href="{{ url('/auth/discord') }}">
+```
+
+`url()` utilise `APP_URL` comme base → génère `http://78.138.58.95/cinemap/auth/discord`.
+
+---
+
+### Partie H — GitHub Actions
 
 #### `ci.yml` — s'exécute sur toutes les branches
 
@@ -2534,7 +2657,7 @@ jobs:
 
 ---
 
-### Partie G — GitHub Secrets
+### Partie I — GitHub Secrets
 
 Dans **Settings → Secrets and variables → Actions** du repo GitHub, ajouter :
 
@@ -2548,7 +2671,7 @@ Dans **Settings → Secrets and variables → Actions** du repo GitHub, ajouter 
 
 ---
 
-### Partie H — Utiliser le serveur MCP contre le VPS
+### Partie J — Utiliser le serveur MCP contre le VPS
 
 Le serveur MCP tourne toujours **en local** (stdio — Claude Code le lance sur ta machine). Mais au lieu de pointer vers `localhost:8000`, il peut interroger l'app déployée sur le VPS.
 
@@ -2563,72 +2686,55 @@ Ta machine locale
 │                         http://78.138.58.95/cinemap  ← VPS (staging)
 ```
 
-Aucune installation sur le VPS — seul `BASE_URL` et le token changent.
+Aucune installation sur le VPS. Il suffit de changer `CINEMAP_BASE_URL` et les credentials dans la config locale.
 
-#### 1. Récupérer un token JWT depuis le VPS
+> L'utilisateur doit exister et être abonné sur la DB du VPS (créé via `docker exec cinemap php artisan migrate:fresh --seed`).
 
-```bash
-curl -s -X POST http://78.138.58.95/cinemap/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"Test123!"}' | jq -r '.token'
+#### 1. Mettre à jour `cinemap-mcp/.env`
+
+```env
+CINEMAP_BASE_URL=http://78.138.58.95/cinemap
+CINEMAP_EMAIL=test@example.com
+CINEMAP_PASSWORD=Test123!
 ```
 
-> L'utilisateur `test@example.com` doit exister et être abonné sur la DB du VPS (créé via `docker exec cinemap php artisan migrate:fresh --seed`).
-
-#### 2. Mettre à jour `cinemap-mcp/index.js`
-
-Changer `BASE_URL` pour pointer vers le VPS :
-
-```js
-const BASE_URL = "http://78.138.58.95/cinemap";
-```
-
-> Pour switcher facilement entre dev et staging, utiliser une variable d'environnement :
-> ```js
-> const BASE_URL = process.env.CINEMAP_BASE_URL ?? "http://localhost:8000";
-> ```
-
-#### 3. Mettre à jour `~/.config/Claude/settings.json`
+#### 2. Mettre à jour `~/.config/Claude/settings.json`
 
 ```json
 {
   "mcpServers": {
     "cinemap": {
-      "command": "/home/rusty/.nvm/versions/node/v20.19.0/bin/node",
-      "args": ["/path/.../B3dev-TP_framework_php/cinemap-mcp/index.js"],
+      "command": "/usr/bin/node",
+      "args": ["/home/rusty/Documents/B3dev/Php/B3dev-TP_framework_php/cinemap-mcp/index.js"],
       "env": {
         "CINEMAP_BASE_URL": "http://78.138.58.95/cinemap",
-        "CINEMAP_JWT_TOKEN": "eyJ..."
+        "CINEMAP_EMAIL": "test@example.com",
+        "CINEMAP_PASSWORD": "Test123!"
       }
     }
   }
 }
 ```
 
+> Le token JWT est récupéré automatiquement au démarrage du MCP. En cas d'expiration (TTL 1h), le serveur se reconnecte automatiquement sur la prochaine requête.
+
 Redémarrer Claude Code pour que la nouvelle config soit prise en compte.
 
-#### 4. Tester
+#### 3. Tester
 
-Dans Claude Code :
+Depuis n'importe quel dossier, lancer `claude` et demander explicitement :
+
 ```
-List all films
-Get localisations for film 1
+Use the cinemap MCP tool list_films to get all films
+Use the cinemap MCP tool get_localisations_for_film for film 1
 ```
 
 Claude appelle `list_films` → `GET http://78.138.58.95/cinemap/api/films`  
 Claude appelle `get_localisations_for_film` → `GET http://78.138.58.95/cinemap/api/films/1/localisations`
 
----
+> Le répertoire courant n'a aucune importance — la config MCP est globale (`~/.config/Claude/settings.json`).
 
-### Checklist
 
-- [ ] Fichiers `deployment/` créés dans `cinemap-app/`
-- [ ] Service `cinemap` ajouté dans `/var/www/docker-compose.yml`
-- [ ] Bloc nginx `/cinemap/` ajouté et nginx rechargé
-- [ ] `.env` créé sur le VPS avec `APP_URL` et `ASSET_URL` corrects
-- [ ] GitHub Secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` configurés
-- [ ] Push sur `staging` → pipeline CI vert → déploiement automatique
-- [ ] `http://78.138.58.95/cinemap/` accessible
 
 
 
