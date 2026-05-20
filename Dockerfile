@@ -12,10 +12,14 @@ FROM php:8.3-fpm-alpine
 RUN apk add --no-cache \
     nginx \
     supervisor \
+    sqlite-dev \
     libpng-dev \
+    libjpeg-turbo-dev \
+    freetype-dev \
     libzip-dev \
     unzip \
     oniguruma-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo_sqlite pdo_mysql gd zip bcmath mbstring opcache
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
