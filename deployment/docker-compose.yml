@@ -1,5 +1,6 @@
 services:
   cinemap-app:
+    image: cinemap-app:latest
     build: ..
     restart: unless-stopped
     ports:
